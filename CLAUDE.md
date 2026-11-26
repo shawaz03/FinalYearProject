@@ -181,15 +181,34 @@ any single win claim.
 | ML | scikit-learn / LightGBM quantile + MAPIE | pin MAPIE exactly; its v1 API renamed the regressors |
 | Dashboard | Next.js + Recharts, WebSocket | Phase 6 only; it is a presentation layer, not a contribution |
 
-### 3.8 Repository layout (to be created)
+### 3.8 Repository layout
+
+Created in Phase 0 (T0.1). Each directory carries its own `README.md` stating
+its purpose, owning member and the phase that fills it.
 
 ```
-cloudpulse/
-  apps/target-app/        services/collector/     ml/
-  services/forecaster/    services/arbiter/       cloudpulse_core/
-  deploy/k8s/  deploy/helm/  load/  experiments/  analysis/  dashboard/
-docs/        <- all existing .docx/.pptx/.pdf/.md move here
+README.md  CLAUDE.md  .gitignore          <- Makefile, requirements.txt: T0.2
+cloudpulse_core/   shared features/seeds/config, imported by ml AND services
+apps/target-app/   FastAPI workload under test (WARMUP_SECONDS lives here)
+services/
+  collector/       Prometheus -> Postgres
+  forecaster/      CQR + ACI, POST /predict
+  arbiter/         capacity model, control layer, K8s actuator
+ml/
+  data/raw/  data/processed/  models/     (all gitignored, regenerated)
+  notebooks/
+deploy/
+  k8s/  helm/      + capacity.yaml, readiness.md, limits.md, queries.md
+load/profiles/     k6 open-loop RPS schedules
+experiments/results/<run_id>/             manifest + summaries
+analysis/figures/  metrics.py, stats.ipynb
+dashboard/         Next.js (off critical path)
+tests/  scripts/
+docs/
+  planning/  reports/  presentations/  viva/  assets/
 ```
+
+`docs/README.md` maps every renamed file back to its original name.
 
 ---
 
@@ -250,16 +269,22 @@ real dates in §8 once the submission deadline is fixed.
 **Goal:** a repo that can hold an experiment honestly.
 **Depends on:** nothing. **Resolves:** D5, D18, D20.
 
-**T0.1 Initialise and restructure**
-- [ ] 0.1.1 `git init`; create the §3.8 directory skeleton with `.gitkeep` files.
+**T0.1 Initialise and restructure** — DONE 2026-11-26
+- [x] 0.1.1 `git init`; create the §3.8 directory skeleton with `.gitkeep` files.
       *Done when:* `git log` has an initial commit and all directories exist.
-- [ ] 0.1.2 Move all `.docx/.pptx/.pdf/.md` deliverables into `docs/`; delete the
+      → commit `2d1390b` snapshots the original documents before any move, so
+      the whole restructure is revertible. Skeleton matches §3.8.
+- [x] 0.1.2 Move all `.docx/.pptx/.pdf/.md` deliverables into `docs/`; delete the
       duplicated nested `FinalYearProject-main/` directory.
       *Done when:* the repo root holds only `README.md`, `CLAUDE.md`,
       `.gitignore`, `Makefile` and the code directories.
-- [ ] 0.1.3 Extend `.gitignore`: `__pycache__/ venv/ .venv/ node_modules/ *.pkl
+      → moved with `git mv` (history preserved) and renamed to kebab-case;
+      mapping in `docs/README.md`. Nested folder removed. `Makefile` is T0.2.2.
+- [x] 0.1.3 Extend `.gitignore`: `__pycache__/ venv/ .venv/ node_modules/ *.pkl
       *.joblib .env *.parquet experiments/results/**/raw/`.
       *Done when:* `git status` is clean after a training run.
+      → written and verified clean for the current tree; the post-training-run
+      half of this check is only exercisable from Phase 4 — re-verify there.
 
 **T0.2 Environment pinning**
 - [ ] 0.2.1 `requirements.txt` with `==` pins for every Python dependency;
@@ -616,7 +641,14 @@ on `cloudpulse_core/features.py` so ML is not a single point of failure.
 
 ## 8. Current status
 
-Phases 0–8: all `[ ]` not started. The repository today contains documentation
-only. **Next action: Phase 0, T0.1.1.**
+Updated 2026-11-26.
+
+| Phase | Status |
+|---|---|
+| 0 — Repo & reproducibility | `[~]` T0.1 done; T0.2 (pins, Makefile, seeds) and T0.3 (manifest schema) outstanding |
+| 1–8 | `[ ]` not started |
+
+Repository is structured and under version control; no application code exists
+yet. **Next action: Phase 0, T0.2.1 — pin `requirements.txt`.**
 
 Anchor W1–W16 to real calendar dates here once the submission deadline is known.

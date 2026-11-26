@@ -1,0 +1,50 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# ---- Node / dashboard ----
+node_modules/
+.next/
+dist/
+build/
+
+# ---- Secrets & local config ----
+.env
+.env.*
+!.env.example
+kubeconfig
+*.kubeconfig
+
+# ---- ML artifacts (regenerate via `make train`) ----
+*.pkl
+*.joblib
+ml/models/*
+!ml/models/.gitkeep
+
+# ---- Data (regenerate via `make collect`) ----
+*.parquet
+ml/data/raw/*
+ml/data/processed/*
+!ml/data/raw/.gitkeep
+!ml/data/processed/.gitkeep
+
+# ---- Experiment raw output; summaries ARE committed ----
+experiments/results/**/raw/
+
+# ---- Office temp files ----
+~$*.docx
+~$*.pptx
+~$*.xlsx
+
+# ---- OS / editor ----
+Thumbs.db
+Desktop.ini
+.DS_Store
+.vscode/
+.idea/
+*.swp

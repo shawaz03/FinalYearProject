@@ -20,7 +20,7 @@
 8. [Phase-by-Phase Execution Roadmap (Phases 1–6)](#-phase-by-phase-execution-roadmap-phases-16)
 9. [Experimental Benchmarking & Target Metrics](#-experimental-benchmarking--target-metrics)
 10. [Mentor Defense & Viva Quick Reference](#-mentor-defense--viva-quick-reference)
-11. [Repository Deliverables & File Index](#-repository-deliverables--file-index)
+11. [Repository Structure & File Index](#-repository-structure--file-index)
 
 ---
 
@@ -204,6 +204,12 @@ Phase 6: Final Review (Weeks 14–16) ─► Capstone documentation, IEEE paper 
 
 ## 📊 Experimental Benchmarking & Target Metrics
 
+> ⚠️ **TARGET VALUES — NOT YET MEASURED.** No experiment has been run. The
+> figures below are design targets stated in advance, not results. They will be
+> replaced by values generated from `experiments/results/` in Phase 7, each
+> traceable to a `run_id`. Do not cite them in any submission or review until
+> then. See `CLAUDE.md` §2 rule 1 and §4 finding D1.
+
 | Evaluation Metric | Static Allocation (10 Pods) | Default Kubernetes HPA | CloudPulse (Our System) |
 | :--- | :---: | :---: | :---: |
 | **P99 Latency during Flash Spike** | ~45 ms | 800 – 1,200 ms | **< 100 ms** |
@@ -232,23 +238,45 @@ Phase 6: Final Review (Weeks 14–16) ─► Capstone documentation, IEEE paper 
 
 ---
 
-## 📁 Repository Deliverables & File Index
+## 📁 Repository Structure & File Index
 
-| File / Document | Purpose & Details |
+> Restructured 2026-11-26. All documents were moved into `docs/` and renamed to
+> consistent kebab-case; nothing was deleted. `docs/README.md` maps every new
+> name back to its original. **`CLAUDE.md` is the authoritative plan** — it
+> supersedes the architecture described in the older planning documents.
+
+### Code (skeleton created; implementation begins at Phase 1)
+
+| Path | Purpose |
 | :--- | :--- |
-| **`CLOUDPULSE_TECHNICAL_BLUEPRINT.md`** | Complete technical guide, IEEE mapping, domain concepts, phase checklists, and pseudocode. |
-| **`CLOUDPULSE_PROJECT_EVALUATION.md`** | Comprehensive academic evaluation report, journal verification, research gaps, and benchmark specs. |
-| **`CLOUDPULSE_PROJECT_EVALUATION.pdf`** | Formatted PDF version of the technical evaluation for department submissions. |
-| **`CLOUDPULSE_PROJECT_EVALUATION.html`** | Web-renderable HTML report of project evaluation. |
-| **`Complete_Mentor_Defense_Guide.md`** | Ready-to-speak scripts and viva defense answers for all mentor review stages. |
-| **`Complete_Mentor_Defense_Guide.docx`** | Microsoft Word version of the mentor defense guide. |
-| **`Smart_Cloud_Resource_Optimization_10pages_MBU_format.docx`** | Official 10-page academic capstone report prepared in strict MBU departmental formatting. |
-| **`Review_0_A8-8.pptx`** | Final Review 0 slide deck presented to the evaluation committee. |
-| **`review 0.pptx`** / **`MBU Capstone...Template.pptx`** | Baseline slide templates and draft review presentations. |
-| **`Review_0_PPT_Content.docx`** | Slide-by-slide script, speaker notes, and content outline. |
-| **`there idea.jpeg`** | Conceptual system architecture diagram sketch. |
-| **`there abstract.docx`** | Initial project abstract submission. |
-| **`README.md`** | Master project documentation, architecture overview, and index. |
+| **`CLAUDE.md`** | Authoritative architecture, phase plan and status. Start here. |
+| **`cloudpulse_core/`** | Shared feature/seed/config package imported by both training and serving. |
+| **`apps/target-app/`** | FastAPI workload under test; hosts the `WARMUP_SECONDS` startup-delay control. |
+| **`services/collector/`** | Prometheus → PostgreSQL telemetry pipeline. |
+| **`services/forecaster/`** | Conformalised quantile forecaster, `POST /predict`. |
+| **`services/arbiter/`** | Capacity model, control layer and Kubernetes actuator. |
+| **`ml/`** | Offline training, datasets and model artifacts. |
+| **`deploy/`** | Kubernetes manifests, Helm values, and measured cluster constants. |
+| **`load/`** | k6 open-loop traffic profiles. |
+| **`experiments/`** | Benchmark runner and per-run results. |
+| **`analysis/`** | Metrics, statistics and figures. |
+| **`dashboard/`** | Next.js control plane. |
+| **`tests/`** · **`scripts/`** | Test suite; operational helpers. |
+
+### Documents
+
+| Path | Purpose |
+| :--- | :--- |
+| **`docs/planning/technical-blueprint.md`** | Technical guide, IEEE mapping, domain concepts, pseudocode. |
+| **`docs/planning/project-evaluation.{md,pdf,html}`** | Academic evaluation, journal verification, research gaps. |
+| **`docs/reports/capstone-report-mbu-10page.docx`** | Official 10-page capstone report in MBU format. |
+| **`docs/reports/project-abstract.docx`** | Initial project abstract submission. |
+| **`docs/viva/mentor-defense-guide.{md,docx}`** | Viva scripts and defense answers. |
+| **`docs/presentations/review-0-final-A8-8.pptx`** | Review 0 deck presented to the committee. |
+| **`docs/presentations/review-0-draft.pptx`** | Earlier draft (differs from final; kept deliberately). |
+| **`docs/presentations/review-0-speaker-notes.docx`** | Slide-by-slide script and speaker notes. |
+| **`docs/presentations/mbu-review-template.pptx`** | Department slide template. |
+| **`docs/assets/initial-architecture-sketch.jpeg`** | Conceptual architecture sketch. |
 
 ---
 
