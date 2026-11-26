@@ -1,0 +1,26 @@
+# T7.2.1 - the naive baseline: stock HPA, stock settings, CPU 70%.
+#
+# This is what "default Kubernetes autoscaling" means in the thesis. It is NOT
+# a fair opponent on its own - beating an untuned baseline proves little - so
+# it must always be reported alongside hpa-tuned.yaml.
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: target-app-hpa
+  namespace: cloudpulse
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: target-app
+  minReplicas: 2
+  maxReplicas: 15
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+  # No behavior block: inherits Kubernetes defaults, which include a
+  # 300s scale-down stabilisation window and a 15s sync period.

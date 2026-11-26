@@ -545,8 +545,11 @@ real dates in §8 once the submission deadline is fixed.
       *Done when:* the arbiter never requests an unschedulable count.
 
 **T5.3 Actuator and RBAC**
-- [ ] 5.3.1 ServiceAccount + Role for `deployments/scale` (get, patch) only.
+- [~] 5.3.1 ServiceAccount + Role for `deployments/scale` (get, patch) only.
       *Done when:* the pod scales the Deployment with no cluster-admin binding.
+      → `deploy/k8s/30-actuator-rbac.yaml` written and validated server-side.
+      Namespaced Role, not ClusterRole. Stays `[~]` until an arbiter actually
+      scales with it (T5.3.2).
 - [ ] 5.3.2 `patch_namespaced_deployment_scale` with retry and backoff.
       *Done when:* an induced API failure retries and logs, without crashing.
 
@@ -607,8 +610,11 @@ real dates in §8 once the submission deadline is fixed.
       *Done when:* the runner refuses to start if an HPA exists on the target.
 
 **T7.2 Tuned baselines (resolves D11)**
-- [ ] 7.2.1 Default HPA (CPU 70%).
-- [ ] 7.2.2 **Tuned** HPA with `behavior:` policies and a tuned threshold.
+- [x] 7.2.1 Default HPA (CPU 70%). → `deploy/baselines/hpa-default.yaml`, validated.
+- [x] 7.2.2 **Tuned** HPA with `behavior:` policies and a tuned threshold.
+      → `deploy/baselines/hpa-tuned.yaml`: CPU 50%, instant scale-up, +100%/+4
+      pods per 15 s, scale-down window matched to ours so neither side gets an
+      unfair edge on pod-seconds.
 - [ ] 7.2.3 Static over-provisioned, sized from Phase-2 capacity to peak demand.
 - [ ] 7.2.4 Naive predictive scaler (last value + margin) — isolates the value of ML.
 - [ ] 7.2.5 Oracle scaler fed the true future demand — the upper bound on any predictor.

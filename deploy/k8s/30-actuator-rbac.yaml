@@ -1,0 +1,46 @@
+# RBAC for the CloudPulse arbiter (T5.3.1).
+#
+# Least privilege on purpose. The arbiter's entire job is to read and write one
+# Deployment's replica count, so that is all it may do. It cannot create or
+# delete pods, cannot read Secrets, and cannot touch any other namespace.
+#
+# A Role, not a ClusterRole: the grant stops at the cloudpulse namespace.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: arbiter
+  namespace: cloudpulse
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: arbiter-scaler
+  namespace: cloudpulse
+rules:
+  # Read current state and observe rollout progress.
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "watch"]
+  # The actuation itself: patch_namespaced_deployment_scale.
+  - apiGroups: ["apps"]
+    resources: ["deployments/scale"]
+    verbs: ["get", "update", "patch"]
+  # Authoritative Ready-replica count and per-pod state for the reactive guard.
+  # Read-only: the arbiter changes replica counts, never individual pods.
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: arbiter-scaler
+  namespace: cloudpulse
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: arbiter-scaler
+subjects:
+  - kind: ServiceAccount
+    name: arbiter
+    namespace: cloudpulse

@@ -1,0 +1,49 @@
+# T7.2.2 - the HONEST baseline: HPA given its best realistic configuration.
+#
+# The research question is "does forecasting beat reacting?", not "does our
+# system beat a misconfigured one". A reviewer will immediately ask whether a
+# well-tuned HPA closes the gap, so we answer it ourselves.
+#
+# If CloudPulse cannot beat THIS, that is the finding, and we report it.
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: target-app-hpa
+  namespace: cloudpulse
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: target-app
+  minReplicas: 2
+  maxReplicas: 15
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          # Lower than default: reacts earlier, trading cost for headroom -
+          # which is exactly the trade CloudPulse claims to make better.
+          averageUtilization: 50
+  behavior:
+    scaleUp:
+      # React immediately. Any stabilisation here is pure added latency.
+      stabilizationWindowSeconds: 0
+      policies:
+        - type: Percent
+          value: 100        # allow doubling
+          periodSeconds: 15
+        - type: Pods
+          value: 4          # or +4 pods, whichever is larger
+          periodSeconds: 15
+      selectPolicy: Max
+    scaleDown:
+      # Matches the window CloudPulse uses (CLAUDE.md §3.5), so neither side
+      # gets an unfair advantage on the pod-seconds cost metric.
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 60
+      selectPolicy: Min
