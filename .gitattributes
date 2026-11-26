@@ -1,0 +1,21 @@
+# Normalise line endings so the four of us don't generate phantom diffs
+* text=auto eol=lf
+
+# Shell scripts must stay LF or they break inside Linux containers
+*.sh text eol=lf
+Makefile text eol=lf
+
+# Binary deliverables: never diff, never convert
+*.docx binary
+*.pptx binary
+*.xlsx binary
+*.pdf  binary
+*.jpeg binary
+*.jpg  binary
+*.png  binary
+*.parquet binary
+*.pkl  binary
+*.joblib binary
+
+# Notebooks: treat as text but don't attempt merges
+*.ipynb text eol=lf merge=binary
