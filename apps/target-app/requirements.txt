@@ -1,0 +1,4 @@
+# Pinned exactly (CLAUDE.md §2 rule 5). Bump deliberately, never with a range.
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+prometheus-fastapi-instrumentator==7.0.0
