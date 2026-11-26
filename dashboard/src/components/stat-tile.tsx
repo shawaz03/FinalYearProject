@@ -69,6 +69,7 @@ export function StatTile({
   spark,
   state,
   className,
+  ...rest
 }: {
   label: string;
   value: string;
@@ -79,18 +80,17 @@ export function StatTile({
   /** status is never colour-alone: this text label is the accessible channel */
   state?: { text: string; color: string };
   className?: string;
-}) {
+} & React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
       className={cn(
-        "flex flex-col justify-between gap-3 rounded-[var(--radius-panel)] border border-edge bg-surface px-4 py-3.5",
+        "plate ticked flex flex-col justify-between gap-3 rounded-[var(--radius-panel)] px-4 py-3.5",
         className,
       )}
+      {...rest}
     >
       <div className="flex items-start justify-between gap-2">
-        <span className="text-[11px] leading-tight text-ink-secondary">
-          {label}
-        </span>
+        <span className="eyebrow leading-tight">{label}</span>
         {state ? (
           <span className="flex items-center gap-1.5 whitespace-nowrap">
             <span
@@ -98,19 +98,14 @@ export function StatTile({
               className="h-1.5 w-1.5 rounded-full"
               style={{ background: state.color }}
             />
-            <span className="font-mono text-[9px] uppercase tracking-wider text-ink-secondary">
-              {state.text}
-            </span>
+            <span className="eyebrow">{state.text}</span>
           </span>
         ) : null}
       </div>
 
       <div className="flex items-end justify-between gap-3">
         <div className="flex items-baseline gap-1">
-          <span
-            className="text-[28px] font-semibold leading-none tracking-[-0.02em]"
-            style={{ color: tone }}
-          >
+          <span className="display text-[34px]" style={{ color: tone }}>
             {value}
           </span>
           {unit ? (

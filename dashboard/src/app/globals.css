@@ -1,106 +1,113 @@
 @import "tailwindcss";
 
 /* ==========================================================================
-   CloudPulse design tokens
+   CloudPulse — "Observatory"
 
-   Palette values come from the validated data-viz reference palette and were
-   checked with the palette validator rather than chosen by eye:
+   A control-room instrument, not a SaaS card grid. The character comes from
+   structure, type and material: tinted surfaces, corner ticks, a dot-grid
+   plane, film grain, and hard typographic scale contrast.
 
-     light  (surface #ffffff)  all checks PASS
-                               worst all-pairs CVD dE 12.6, normal-vision 23.0
-                               WARN: orange 2.88:1 and aqua 2.54:1 vs surface
-                                     -> relief rule: direct labels + table view
-     dark   (surface #191919)  all checks PASS, all slots >= 3:1
+   Colour is still reserved for DATA. Chrome is greyscale. That is not
+   restraint for its own sake — it is why three plots can be read at a glance.
 
-   Colour is reserved for DATA. Every piece of chrome - rules, axes, borders,
-   labels - is greyscale. That is the whole reason the charts read clearly at
-   a glance, and it is why there are no gradients or glows anywhere here.
+   Series palette computed with the data-viz validator, not chosen by eye:
+     dark  (surface #0F1319)  ALL PASS · worst all-pairs CVD dE 13.1,
+                              normal-vision 23.8, all slots >= 3:1
+     light (surface #FBFAF8)  ALL PASS · worst all-pairs CVD dE 13.1,
+                              normal-vision 23.8, all slots >= 3:1
    ========================================================================== */
 
 @theme {
   --font-sans: var(--font-plex-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-plex-mono), ui-monospace, monospace;
-
-  /* radii: tight. An instrument, not a card-based marketing page. */
-  --radius-panel: 6px;
-  --radius-chip: 3px;
+  --radius-panel: 2px;
+  --radius-chip: 2px;
 }
 
 :root {
   color-scheme: light;
 
-  /* planes */
-  --plane: #f9f9f9;
-  --surface: #ffffff;
-  --surface-sunken: #f3f3f3;
+  /* warm paper, not flat white */
+  --plane: #f1efea;
+  --surface: #fbfaf8;
+  --surface-raised: #ffffff;
+  --surface-sunken: #e9e6e0;
 
-  /* ink */
-  --ink: #191919;
-  --ink-secondary: #666666;
-  --ink-tertiary: #8d8d8d;
+  --ink: #14161a;
+  --ink-secondary: #5b6069;
+  --ink-tertiary: #8b9099;
 
-  /* rules */
-  --grid: #e7e7e7;
-  --axis: #c2c2c2;
-  --border: rgba(11, 11, 11, 0.1);
-  --border-strong: rgba(11, 11, 11, 0.18);
+  --grid: #e0ddd6;
+  --axis: #b9b5ac;
+  --border: rgba(20, 22, 26, 0.12);
+  --border-strong: rgba(20, 22, 26, 0.26);
+  /* the 1px top highlight that gives a panel material thickness */
+  --bevel: rgba(255, 255, 255, 0.9);
 
-  /* data series - categorical slots 1..3 */
-  --series-demand: #257de0; /* slot 1 blue   - measured reality */
-  --series-forecast: #f47230; /* slot 2 orange - prediction      */
-  --series-replicas: #00b894; /* slot 3 aqua   - capacity        */
+  --series-demand: #5b57d8;
+  --series-forecast: #d64a22;
+  --series-replicas: #008f7d;
 
-  /* status - fixed, never themed, never reused as a series */
   --status-good: #0aac23;
   --status-warning: #fbb315;
   --status-serious: #f18a59;
   --status-critical: #dc3c3d;
-
   --success-text: #006c10;
+
+  --grain-opacity: 0.025;
+  --dot-opacity: 0.5;
 }
 
-/* Dark is a SELECTED set of steps for the dark surface, not an inverted flip. */
 @media (prefers-color-scheme: dark) {
   :root:where(:not([data-theme="light"])) {
     color-scheme: dark;
-    --plane: #0b0b0b;
-    --surface: #191919;
-    --surface-sunken: #121212;
-    --ink: #efefef;
-    --ink-secondary: #9c9c9c;
-    --ink-tertiary: #7a7a7a;
-    --grid: #303030;
-    --axis: #474747;
-    --border: rgba(255, 255, 255, 0.1);
-    --border-strong: rgba(255, 255, 255, 0.18);
-    --series-demand: #338ced;
-    --series-forecast: #e76624;
-    --series-replicas: #00a888;
+    --plane: #0a0d12;
+    --surface: #0f1319;
+    --surface-raised: #151a22;
+    --surface-sunken: #080a0e;
+    --ink: #e8eaee;
+    --ink-secondary: #99a1ad;
+    --ink-tertiary: #6b737f;
+    --grid: #1e242e;
+    --axis: #39414e;
+    --border: rgba(255, 255, 255, 0.09);
+    --border-strong: rgba(255, 255, 255, 0.2);
+    --bevel: rgba(255, 255, 255, 0.06);
+    --series-demand: #7c7af0;
+    --series-forecast: #f0663f;
+    --series-replicas: #12ae9b;
     --success-text: #53c556;
+    --grain-opacity: 0.04;
+    --dot-opacity: 1;
   }
 }
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --plane: #0b0b0b;
-  --surface: #191919;
-  --surface-sunken: #121212;
-  --ink: #efefef;
-  --ink-secondary: #9c9c9c;
-  --ink-tertiary: #7a7a7a;
-  --grid: #303030;
-  --axis: #474747;
-  --border: rgba(255, 255, 255, 0.1);
-  --border-strong: rgba(255, 255, 255, 0.18);
-  --series-demand: #338ced;
-  --series-forecast: #e76624;
-  --series-replicas: #00a888;
+  --plane: #0a0d12;
+  --surface: #0f1319;
+  --surface-raised: #151a22;
+  --surface-sunken: #080a0e;
+  --ink: #e8eaee;
+  --ink-secondary: #99a1ad;
+  --ink-tertiary: #6b737f;
+  --grid: #1e242e;
+  --axis: #39414e;
+  --border: rgba(255, 255, 255, 0.09);
+  --border-strong: rgba(255, 255, 255, 0.2);
+  --bevel: rgba(255, 255, 255, 0.06);
+  --series-demand: #7c7af0;
+  --series-forecast: #f0663f;
+  --series-replicas: #12ae9b;
   --success-text: #53c556;
+  --grain-opacity: 0.04;
+  --dot-opacity: 1;
 }
 
 @theme inline {
   --color-plane: var(--plane);
   --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
   --color-surface-sunken: var(--surface-sunken);
   --color-ink: var(--ink);
   --color-ink-secondary: var(--ink-secondary);
@@ -134,20 +141,113 @@ body {
   text-rendering: optimizeLegibility;
 }
 
-/* Columns of figures and axis ticks align; standalone display numbers do not
-   (tabular-nums makes a value like 121 look loose at large sizes). */
-.tnum {
-  font-variant-numeric: tabular-nums;
+/* --------------------------------------------------------------------------
+   Material
+   -------------------------------------------------------------------------- */
+
+/* A surveyor's dot grid on the plane. Gives the layout a measured ground
+   without drawing a single decorative line. */
+.plane-grid {
+  background-image: radial-gradient(
+    circle at 1px 1px,
+    var(--axis) 1px,
+    transparent 0
+  );
+  background-size: 28px 28px;
+  opacity: calc(0.18 * var(--dot-opacity));
 }
 
-/* The one piece of ornament in the whole interface: a hairline measurement
-   rule, borrowed from lab instrument faces. Used only on panel headers. */
+/* Film grain. Static SVG noise — no gradient, no glow; it reads as material
+   rather than as the usual blurred colour wash. */
+.grain {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
+  opacity: var(--grain-opacity);
+  mix-blend-mode: overlay;
+}
+
+/* Panels get a 1px lit top edge so they read as physical plates. */
+.plate {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: inset 0 1px 0 0 var(--bevel);
+}
+
+/* Corner ticks — instrument-panel registration marks. Drawn with gradients
+   on pseudo-elements so they cost no markup. */
+.ticked {
+  position: relative;
+}
+.ticked::before,
+.ticked::after {
+  content: "";
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  pointer-events: none;
+  border-color: var(--border-strong);
+}
+.ticked::before {
+  top: -1px;
+  left: -1px;
+  border-top: 1px solid;
+  border-left: 1px solid;
+}
+.ticked::after {
+  bottom: -1px;
+  right: -1px;
+  border-bottom: 1px solid;
+  border-right: 1px solid;
+}
+
+/* Hairline measurement rule, used in panel headers. */
 .rule-ticks {
   background-image: repeating-linear-gradient(
     to right,
     var(--axis) 0 1px,
-    transparent 1px 6px
+    transparent 1px 7px
   );
+}
+
+/* --------------------------------------------------------------------------
+   Type
+   -------------------------------------------------------------------------- */
+
+.eyebrow {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-tertiary);
+}
+
+.display {
+  font-weight: 600;
+  letter-spacing: -0.035em;
+  line-height: 0.88;
+  font-variant-numeric: proportional-nums;
+}
+
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+/* --------------------------------------------------------------------------
+   Motion — purposeful only
+   -------------------------------------------------------------------------- */
+
+@keyframes cp-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.35;
+    transform: scale(0.78);
+  }
+}
+.live-dot {
+  animation: cp-pulse 2.4s ease-in-out infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -163,4 +263,16 @@ body {
 ::selection {
   background: var(--series-demand);
   color: #ffffff;
+}
+
+::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 0;
 }

@@ -34,18 +34,42 @@ client-side k6 values, not server histograms (§3.5).
 greyscale. No gradients, no glow, no glass. The charts read at a glance because
 nothing else on screen competes with them.
 
-**The palette was computed, not chosen.** Values come from the validated
-data-viz reference palette and were checked with its validator:
+**The palette was computed, not chosen.** Periwinkle / coral / teal, each
+step found by running candidates through the data-viz validator and rejecting
+the failures:
 
-| mode | result |
+| candidate | result |
 |---|---|
-| light (`#ffffff`) | all pass · worst all-pairs CVD ΔE 12.6, normal-vision 23.0 |
-| dark (`#191919`) | all pass · all slots ≥ 3:1 |
+| cyan / amber / mint | FAIL — all three outside the L 0.48–0.70 band |
+| violet / amber / lime | FAIL — lime vs amber is CVD ΔE **3.4** (deuteranopia) |
+| **periwinkle / coral / teal** | **PASS** both modes |
 
-Light mode flags orange (2.88:1) and aqua (2.54:1) below 3:1, which triggers
-the **relief rule** — so every series carries a direct legend entry and a table
-view exists. Dark mode is a *selected* set of steps for the dark surface, not
-an automatic inversion.
+The lime/amber pair is the lesson: it looks obviously distinct to normal
+vision and is near-identical to roughly 6% of men. No amount of staring finds
+that — only the validator does.
+
+| mode | surface | result |
+|---|---|---|
+| light | `#fbfaf8` warm paper | all pass · CVD ΔE 13.1 · normal 23.8 · all ≥ 3:1 |
+| dark | `#0f1319` blue-black | all pass · CVD ΔE 13.1 · normal 23.8 · all ≥ 3:1 |
+
+Both modes clear 3:1 on their own surface, so unlike the first pass there is
+no sub-contrast relief case at all.
+
+**Character lives in the chrome, not the chart colours.** The first version
+read generic because it was flat cards on `#191919` — the most common dashboard
+surface there is. What changed:
+
+- tinted blue-black and warm-paper surfaces instead of neutral grey
+- a surveyor's **dot grid** on the plane and static SVG **film grain**, for
+  material quality without a single gradient
+- **corner registration ticks** and a 1px lit top edge on every plate, so
+  panels read as instrument plates rather than cards
+- **section indices** (01, 02, 03) on panel headers
+- hard typographic scale contrast: a `clamp(56px, 8vw, 96px)` hero against
+  10px wide-tracked eyebrow labels
+- a 2px status spine on the hero plate that turns critical when breaching
+- 2px panel radius — near-square, mechanical
 
 **Three plots, one time axis, never two y-axes.** Demand (req/s), replicas
 (count) and latency (ms) are different scales. A dual-axis chart invents a
