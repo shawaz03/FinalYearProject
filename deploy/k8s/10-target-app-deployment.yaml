@@ -1,0 +1,74 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: target-app
+  namespace: cloudpulse
+  labels:
+    app: target-app
+spec:
+  # The experiment runner and the arbiter both write this field. Treat the
+  # value committed here as the starting point of a run, not a fixed truth.
+  replicas: 3
+  selector:
+    matchLabels:
+      app: target-app
+  template:
+    metadata:
+      labels:
+        app: target-app
+      annotations:
+        # Plain Prometheus discovers pods by these annotations. No operator,
+        # no ServiceMonitor CRD (CLAUDE.md §3.7).
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+        - name: target-app
+          image: cloudpulse/target-app:0.1.0
+          # MUST be IfNotPresent: the image is imported into the node, not
+          # published to any registry. Always would make every pod fail
+          # ImagePullBackOff trying to reach Docker Hub.
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8000
+          env:
+            # Patched per experiment; swept in Phase 7 (T7.4).
+            - name: WARMUP_SECONDS
+              value: "0"
+            - name: WORK_ITERATIONS
+              value: "15000"
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              # The CPU limit is what actually bounds per-pod throughput, so it
+              # defines the capacity constant C measured in Phase 2 (T2.2).
+              # Changing it invalidates C and every replica count derived from it.
+              cpu: "500m"
+              memory: "128Mi"
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            # 2s period keeps time-to-Ready measurable to fine resolution,
+            # which Phase 2 (T2.3) needs to derive the forecast horizon H.
+            periodSeconds: 2
+            failureThreshold: 1
+            successThreshold: 1
+            timeoutSeconds: 2
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            # Deliberately generous and warmup-independent: a liveness probe
+            # that fires during warmup would crash-loop the pod forever.
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            failureThreshold: 3

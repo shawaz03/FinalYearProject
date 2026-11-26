@@ -349,18 +349,25 @@ real dates in §8 once the submission deadline is fixed.
 - [x] 1.1.2 Implement `WARMUP_SECONDS` (env): `/readyz` returns 503 until elapsed (§3.6).
       *Done when:* with `WARMUP_SECONDS=30` the container reports NotReady for ~30 s.
       → verified at 8 s: t=3 s gave healthz 200 / readyz 503; t=10 s gave 200 / 200.
-- [~] 1.1.3 Dockerfile, multi-stage, pinned base; import into the k3d cluster.
+- [x] 1.1.3 Dockerfile, multi-stage, pinned base; import into the k3d cluster.
       *Done when:* `k3d image import` succeeds and a pod runs the tagged image.
-      → image builds clean (`cloudpulse/target-app:0.1.0`, 260 MB, non-root).
-      Import still pending — no cluster exists yet (T1.2.1).
+      → `cloudpulse/target-app:0.1.0` (260 MB, non-root) imported; 3/3 pods Running.
 
 **T1.2 Cluster**
-- [ ] 1.2.1 `k3d cluster create cloudpulse` (servers 1, Traefik disabled).
+- [x] 1.2.1 `k3d cluster create cloudpulse` (servers 1, Traefik disabled).
       *Done when:* `kubectl get nodes` shows Ready and `kubectl top pods` returns
       values — metrics-server ships with K3s, nothing to enable.
-- [ ] 1.2.2 Deployment + Service manifests with explicit `resources.requests` =
+      → created in 61 s; node Ready; only 3 system pods; Traefik confirmed absent;
+      `kubectl top` works. Control plane 474 Mi (vs ~2 GB for Minikube).
+      One gotcha hit and documented in `deploy/troubleshooting.md`: k3d wrote
+      `host.docker.internal`, which resolved to a VPN adapter; repointed the
+      context at `127.0.0.1`.
+- [x] 1.2.2 Deployment + Service manifests with explicit `resources.requests` =
       `50m` CPU / `64Mi` and matching limits.
       *Done when:* `kubectl get deploy target-app` shows 3/3 Ready.
+      → 3/3 Ready. Service routing verified: 9 requests spread across all three
+      pods. Scaling verified both ways. `imagePullPolicy: IfNotPresent` is
+      load-bearing — the image is imported, not published to any registry.
 
 **T1.3 Observability**
 - [ ] 1.3.1 Apply the plain Prometheus manifest: `scrape_interval: 5s`,
@@ -375,10 +382,12 @@ real dates in §8 once the submission deadline is fixed.
       *Done when:* each query returns non-empty data under load.
 
 **T1.4 Capacity sanity (resolves D13)**
-- [ ] 1.4.1 Scale manually to the intended `MAX_PODS` and observe scheduling.
+- [x] 1.4.1 Scale manually to the intended `MAX_PODS` and observe scheduling.
       *Done when:* all pods reach Running with **zero** `Pending`; if any pend,
       lower `MAX_PODS` and record the real ceiling in `deploy/limits.md`. This
       number overrides the README's 20.
+      → 15/15 Running, zero Pending. Node allocatable 8 CPU / 5.79 GiB / 110
+      pods, so there is headroom above 15. Recorded in `deploy/limits.md`.
 
 > **EXIT GATE 1:** `[ ]` A 10-minute manual load produces a visible spike in all
 > queries from T1.3.3, and `MAX_PODS` is empirically proven schedulable.
