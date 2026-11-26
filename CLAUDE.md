@@ -341,12 +341,18 @@ real dates in §8 once the submission deadline is fixed.
 **Depends on:** Phase 0. **Owner:** M2 (infra) + M3 (app). **Resolves:** D13.
 
 **T1.1 Target application**
-- [ ] 1.1.1 FastAPI app: `/` (tunable CPU-bound work), `/healthz`, `/readyz`, `/metrics`.
+- [x] 1.1.1 FastAPI app: `/` (tunable CPU-bound work), `/healthz`, `/readyz`, `/metrics`.
       *Done when:* `curl localhost:8000/metrics` returns `http_requests_total`.
-- [ ] 1.1.2 Implement `WARMUP_SECONDS` (env): `/readyz` returns 503 until elapsed (§3.6).
+      → verified in-container: 6 work requests produced
+      `http_requests_total{handler="/api/work"} 6.0`, and 4 probe calls produced
+      **zero** entries — probe traffic cannot contaminate the forecast signal.
+- [x] 1.1.2 Implement `WARMUP_SECONDS` (env): `/readyz` returns 503 until elapsed (§3.6).
       *Done when:* with `WARMUP_SECONDS=30` the container reports NotReady for ~30 s.
-- [ ] 1.1.3 Dockerfile, multi-stage, pinned base; import into the k3d cluster.
+      → verified at 8 s: t=3 s gave healthz 200 / readyz 503; t=10 s gave 200 / 200.
+- [~] 1.1.3 Dockerfile, multi-stage, pinned base; import into the k3d cluster.
       *Done when:* `k3d image import` succeeds and a pod runs the tagged image.
+      → image builds clean (`cloudpulse/target-app:0.1.0`, 260 MB, non-root).
+      Import still pending — no cluster exists yet (T1.2.1).
 
 **T1.2 Cluster**
 - [ ] 1.2.1 `k3d cluster create cloudpulse` (servers 1, Traefik disabled).
