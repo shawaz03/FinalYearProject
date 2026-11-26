@@ -10,11 +10,15 @@
    Colour is still reserved for DATA. Chrome is greyscale. That is not
    restraint for its own sake — it is why three plots can be read at a glance.
 
-   Series palette computed with the data-viz validator, not chosen by eye:
-     dark  (surface #0F1319)  ALL PASS · worst all-pairs CVD dE 13.1,
-                              normal-vision 23.8, all slots >= 3:1
-     light (surface #FBFAF8)  ALL PASS · worst all-pairs CVD dE 13.1,
-                              normal-vision 23.8, all slots >= 3:1
+   Warm neutral ground: sand/cream in light, espresso in dark. The plane
+   carries a slow gradient; panels sit on a FLAT surface, because a chart
+   rendered over a gradient has no single background to validate contrast
+   against.
+
+   Series palette computed with the data-viz validator, not chosen by eye.
+   No violet anywhere - the previous periwinkle slot read as purple:
+     light (surface #FBF8F1)  ALL PASS · CVD dE 13.7 · normal 20.2 · all >= 3:1
+     dark  (surface #1C1815)  ALL PASS · CVD dE 12.7 · normal 15.6 · all >= 3:1
    ========================================================================== */
 
 @theme {
@@ -27,26 +31,29 @@
 :root {
   color-scheme: light;
 
-  /* warm paper, not flat white */
-  --plane: #f1efea;
-  --surface: #fbfaf8;
-  --surface-raised: #ffffff;
-  --surface-sunken: #e9e6e0;
+  /* sand ground; panels sit on flat cream above it */
+  --plane: #efe7d6;
+  --plane-a: #f8f3e7;
+  --plane-b: #ece2cd;
+  --plane-c: #e3d7bd;
+  --surface: #fbf8f1;
+  --surface-raised: #fffdf8;
+  --surface-sunken: #f0ebdf;
 
-  --ink: #14161a;
-  --ink-secondary: #5b6069;
-  --ink-tertiary: #8b9099;
+  --ink: #1a1713;
+  --ink-secondary: #6a6256;
+  --ink-tertiary: #978d7c;
 
-  --grid: #e0ddd6;
-  --axis: #b9b5ac;
-  --border: rgba(20, 22, 26, 0.12);
-  --border-strong: rgba(20, 22, 26, 0.26);
+  --grid: #e4dcc9;
+  --axis: #c3b79f;
+  --border: rgba(26, 23, 19, 0.13);
+  --border-strong: rgba(26, 23, 19, 0.26);
   /* the 1px top highlight that gives a panel material thickness */
   --bevel: rgba(255, 255, 255, 0.9);
 
-  --series-demand: #5b57d8;
-  --series-forecast: #d64a22;
-  --series-replicas: #008f7d;
+  --series-demand: #2060c8;
+  --series-forecast: #cc5a1a;
+  --series-replicas: #009384;
 
   --status-good: #0aac23;
   --status-warning: #fbb315;
@@ -54,28 +61,31 @@
   --status-critical: #dc3c3d;
   --success-text: #006c10;
 
-  --grain-opacity: 0.025;
-  --dot-opacity: 0.5;
+  --grain-opacity: 0.03;
+  --dot-opacity: 0.45;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:where(:not([data-theme="light"])) {
     color-scheme: dark;
-    --plane: #0a0d12;
-    --surface: #0f1319;
-    --surface-raised: #151a22;
-    --surface-sunken: #080a0e;
-    --ink: #e8eaee;
-    --ink-secondary: #99a1ad;
-    --ink-tertiary: #6b737f;
-    --grid: #1e242e;
-    --axis: #39414e;
-    --border: rgba(255, 255, 255, 0.09);
-    --border-strong: rgba(255, 255, 255, 0.2);
-    --bevel: rgba(255, 255, 255, 0.06);
-    --series-demand: #7c7af0;
-    --series-forecast: #f0663f;
-    --series-replicas: #12ae9b;
+    --plane: #15110d;
+    --plane-a: #1f1a14;
+    --plane-b: #14110d;
+    --plane-c: #0d0b08;
+    --surface: #1c1815;
+    --surface-raised: #241f1a;
+    --surface-sunken: #110e0b;
+    --ink: #f0ebe2;
+    --ink-secondary: #a79c8c;
+    --ink-tertiary: #7a7163;
+    --grid: #2b251e;
+    --axis: #473f34;
+    --border: rgba(240, 235, 226, 0.1);
+    --border-strong: rgba(240, 235, 226, 0.22);
+    --bevel: rgba(255, 246, 230, 0.07);
+    --series-demand: #5a9bea;
+    --series-forecast: #eb7b33;
+    --series-replicas: #13ad97;
     --success-text: #53c556;
     --grain-opacity: 0.04;
     --dot-opacity: 1;
@@ -84,21 +94,24 @@
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --plane: #0a0d12;
-  --surface: #0f1319;
-  --surface-raised: #151a22;
-  --surface-sunken: #080a0e;
-  --ink: #e8eaee;
-  --ink-secondary: #99a1ad;
-  --ink-tertiary: #6b737f;
-  --grid: #1e242e;
-  --axis: #39414e;
-  --border: rgba(255, 255, 255, 0.09);
-  --border-strong: rgba(255, 255, 255, 0.2);
-  --bevel: rgba(255, 255, 255, 0.06);
-  --series-demand: #7c7af0;
-  --series-forecast: #f0663f;
-  --series-replicas: #12ae9b;
+  --plane: #15110d;
+  --plane-a: #1f1a14;
+  --plane-b: #14110d;
+  --plane-c: #0d0b08;
+  --surface: #1c1815;
+  --surface-raised: #241f1a;
+  --surface-sunken: #110e0b;
+  --ink: #f0ebe2;
+  --ink-secondary: #a79c8c;
+  --ink-tertiary: #7a7163;
+  --grid: #2b251e;
+  --axis: #473f34;
+  --border: rgba(240, 235, 226, 0.1);
+  --border-strong: rgba(240, 235, 226, 0.22);
+  --bevel: rgba(255, 246, 230, 0.07);
+  --series-demand: #5a9bea;
+  --series-forecast: #eb7b33;
+  --series-replicas: #13ad97;
   --success-text: #53c556;
   --grain-opacity: 0.04;
   --dot-opacity: 1;
@@ -129,10 +142,30 @@
   border-color: var(--border);
 }
 
-html,
-body {
+html {
   background: var(--plane);
+}
+
+/* The ground.
+   Three overlapping layers rather than one linear ramp: two wide, very low
+   contrast radials plus a long diagonal. Close stop values and large radii
+   are what keep a big flat field from banding on 8-bit displays, which a
+   single two-stop gradient across a whole page will almost always do.
+   Fixed attachment so the light stays put while content scrolls under it. */
+body {
   color: var(--ink);
+  background-color: var(--plane);
+  background-image:
+    radial-gradient(125% 90% at 10% -5%, var(--plane-a) 0%, transparent 60%),
+    radial-gradient(115% 95% at 95% 5%, var(--plane-b) 0%, transparent 55%),
+    linear-gradient(
+      168deg,
+      var(--plane-a) 0%,
+      var(--plane-b) 48%,
+      var(--plane-c) 100%
+    );
+  background-attachment: fixed;
+  min-height: 100vh;
 }
 
 body {
@@ -154,7 +187,7 @@ body {
     transparent 0
   );
   background-size: 28px 28px;
-  opacity: calc(0.18 * var(--dot-opacity));
+  opacity: calc(0.13 * var(--dot-opacity));
 }
 
 /* Film grain. Static SVG noise — no gradient, no glow; it reads as material
@@ -162,7 +195,7 @@ body {
 .grain {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
   opacity: var(--grain-opacity);
-  mix-blend-mode: overlay;
+  mix-blend-mode: soft-light;
 }
 
 /* Panels get a 1px lit top edge so they read as physical plates. */

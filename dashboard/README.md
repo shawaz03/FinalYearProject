@@ -34,27 +34,36 @@ client-side k6 values, not server histograms (§3.5).
 greyscale. No gradients, no glow, no glass. The charts read at a glance because
 nothing else on screen competes with them.
 
-**The palette was computed, not chosen.** Periwinkle / coral / teal, each
-step found by running candidates through the data-viz validator and rejecting
-the failures:
+**Warm ground, flat panels.** The plane carries a slow three-layer gradient
+(two wide low-contrast radials plus a long diagonal). Panels sit on a **flat**
+surface on top of it — a chart drawn over a gradient has no single background
+colour to validate contrast against, so the ground never runs under the data.
+
+Three layers rather than one ramp because a single two-stop gradient across a
+whole page bands visibly on 8-bit displays. Close stop values and large radii
+are what keep a large flat field smooth.
+
+**The palette was computed, not chosen.** No violet anywhere — the earlier
+periwinkle slot read as purple. Candidates were run through the data-viz
+validator and the failures discarded:
 
 | candidate | result |
 |---|---|
-| cyan / amber / mint | FAIL — all three outside the L 0.48–0.70 band |
-| violet / amber / lime | FAIL — lime vs amber is CVD ΔE **3.4** (deuteranopia) |
-| **periwinkle / coral / teal** | **PASS** both modes |
+| violet / amber / lime | FAIL — lime vs amber CVD ΔE **3.4** (deuteranopia) |
+| blue / rust / dark teal | FAIL — teal chroma 0.088, reads grey |
+| **blue / rust / teal-green** | **PASS** both modes |
 
-The lime/amber pair is the lesson: it looks obviously distinct to normal
-vision and is near-identical to roughly 6% of men. No amount of staring finds
-that — only the validator does.
+The lime/amber pair is the lesson: obviously distinct to normal vision,
+near-identical to roughly 6% of men. Only the validator finds that.
 
-| mode | surface | result |
-|---|---|---|
-| light | `#fbfaf8` warm paper | all pass · CVD ΔE 13.1 · normal 23.8 · all ≥ 3:1 |
-| dark | `#0f1319` blue-black | all pass · CVD ΔE 13.1 · normal 23.8 · all ≥ 3:1 |
+| mode | surface | series | result |
+|---|---|---|---|
+| sand (default) | `#fbf8f1` | `#2060c8` `#cc5a1a` `#009384` | CVD ΔE 13.7 · normal 20.2 · all ≥ 3:1 |
+| espresso | `#1c1815` | `#5a9bea` `#eb7b33` `#13ad97` | CVD ΔE 12.7 · normal 15.6 · all ≥ 3:1 |
 
-Both modes clear 3:1 on their own surface, so unlike the first pass there is
-no sub-contrast relief case at all.
+Sand is the default state, not a light variant of a dark theme — the OS
+preference does not override it. Espresso is a selected set of steps for the
+warm dark surface.
 
 **Character lives in the chrome, not the chart colours.** The first version
 read generic because it was flat cards on `#191919` — the most common dashboard

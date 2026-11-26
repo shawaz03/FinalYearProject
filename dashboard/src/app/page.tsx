@@ -89,16 +89,12 @@ export default function Page() {
 
   const { head, playing, play, stop, setHead } = useReplay(allRows.length);
   const [showTable, setShowTable] = React.useState(false);
-  const [theme, setTheme] = React.useState<"light" | "dark">("dark");
+  const [theme, setTheme] = React.useState<"light" | "dark">("light");
   const stage = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
     const stored = localStorage.getItem("cp-theme") as "light" | "dark" | null;
-    const initial =
-      stored ??
-      (window.matchMedia("(prefers-color-scheme: dark)").matches
-        ? "dark"
-        : "light");
+    const initial = stored ?? "light";
     setTheme(initial);
     document.documentElement.setAttribute("data-theme", initial);
   }, []);

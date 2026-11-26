@@ -37,10 +37,12 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        {/* Resolve the theme before first paint so there is no light flash. */}
+        {/* Resolve the theme before first paint, so there is no flash.
+            Sand is the default; the OS preference does not override it, because
+            the warm ground is the designed state rather than a light variant. */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var t=localStorage.getItem('cp-theme');if(t)document.documentElement.setAttribute('data-theme',t);}catch(e){}})();`,
+            __html: `(function(){try{var t=localStorage.getItem('cp-theme')||'light';document.documentElement.setAttribute('data-theme',t);}catch(e){document.documentElement.setAttribute('data-theme','light');}})();`,
           }}
         />
       </head>
