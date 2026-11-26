@@ -1,6 +1,9 @@
 # docs
 
-> **Start here: [`PROJECT_JOURNAL.md`](PROJECT_JOURNAL.md)** — what was reviewed,
+> **Three documents, three questions:**
+> [`../CLAUDE.md`](../CLAUDE.md) — what we are building and in what order ·
+> [`../WORKPROCESS.md`](../WORKPROCESS.md) — how the work went, step by step ·
+> [`PROJECT_JOURNAL.md`](PROJECT_JOURNAL.md) — what was reviewed,
 > what was decided and why, what was built and verified, and what is measured.
 > The fastest way for a teammate to catch up.
 

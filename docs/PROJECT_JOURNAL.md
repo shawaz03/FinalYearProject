@@ -6,6 +6,10 @@ A record of what was reviewed, what was decided and why, what was built, and
 what was measured. Written so a teammate who was not present can pick up the
 work, and so every decision can be defended at viva.
 
+> **Companion:** [`../WORKPROCESS.md`](../WORKPROCESS.md) is the chronological
+> log — what was attempted, what broke, and how each step was verified. This
+> file is organised by *decision* instead.
+>
 > **Precedence.** `CLAUDE.md` at the repository root is the authoritative plan.
 > This journal explains *how we got there*. Where the older documents in
 > `docs/planning/` and `docs/viva/` disagree with either, they are superseded —
