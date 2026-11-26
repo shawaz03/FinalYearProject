@@ -1,0 +1,166 @@
+@import "tailwindcss";
+
+/* ==========================================================================
+   CloudPulse design tokens
+
+   Palette values come from the validated data-viz reference palette and were
+   checked with the palette validator rather than chosen by eye:
+
+     light  (surface #ffffff)  all checks PASS
+                               worst all-pairs CVD dE 12.6, normal-vision 23.0
+                               WARN: orange 2.88:1 and aqua 2.54:1 vs surface
+                                     -> relief rule: direct labels + table view
+     dark   (surface #191919)  all checks PASS, all slots >= 3:1
+
+   Colour is reserved for DATA. Every piece of chrome - rules, axes, borders,
+   labels - is greyscale. That is the whole reason the charts read clearly at
+   a glance, and it is why there are no gradients or glows anywhere here.
+   ========================================================================== */
+
+@theme {
+  --font-sans: var(--font-plex-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, monospace;
+
+  /* radii: tight. An instrument, not a card-based marketing page. */
+  --radius-panel: 6px;
+  --radius-chip: 3px;
+}
+
+:root {
+  color-scheme: light;
+
+  /* planes */
+  --plane: #f9f9f9;
+  --surface: #ffffff;
+  --surface-sunken: #f3f3f3;
+
+  /* ink */
+  --ink: #191919;
+  --ink-secondary: #666666;
+  --ink-tertiary: #8d8d8d;
+
+  /* rules */
+  --grid: #e7e7e7;
+  --axis: #c2c2c2;
+  --border: rgba(11, 11, 11, 0.1);
+  --border-strong: rgba(11, 11, 11, 0.18);
+
+  /* data series - categorical slots 1..3 */
+  --series-demand: #257de0; /* slot 1 blue   - measured reality */
+  --series-forecast: #f47230; /* slot 2 orange - prediction      */
+  --series-replicas: #00b894; /* slot 3 aqua   - capacity        */
+
+  /* status - fixed, never themed, never reused as a series */
+  --status-good: #0aac23;
+  --status-warning: #fbb315;
+  --status-serious: #f18a59;
+  --status-critical: #dc3c3d;
+
+  --success-text: #006c10;
+}
+
+/* Dark is a SELECTED set of steps for the dark surface, not an inverted flip. */
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) {
+    color-scheme: dark;
+    --plane: #0b0b0b;
+    --surface: #191919;
+    --surface-sunken: #121212;
+    --ink: #efefef;
+    --ink-secondary: #9c9c9c;
+    --ink-tertiary: #7a7a7a;
+    --grid: #303030;
+    --axis: #474747;
+    --border: rgba(255, 255, 255, 0.1);
+    --border-strong: rgba(255, 255, 255, 0.18);
+    --series-demand: #338ced;
+    --series-forecast: #e76624;
+    --series-replicas: #00a888;
+    --success-text: #53c556;
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --plane: #0b0b0b;
+  --surface: #191919;
+  --surface-sunken: #121212;
+  --ink: #efefef;
+  --ink-secondary: #9c9c9c;
+  --ink-tertiary: #7a7a7a;
+  --grid: #303030;
+  --axis: #474747;
+  --border: rgba(255, 255, 255, 0.1);
+  --border-strong: rgba(255, 255, 255, 0.18);
+  --series-demand: #338ced;
+  --series-forecast: #e76624;
+  --series-replicas: #00a888;
+  --success-text: #53c556;
+}
+
+@theme inline {
+  --color-plane: var(--plane);
+  --color-surface: var(--surface);
+  --color-surface-sunken: var(--surface-sunken);
+  --color-ink: var(--ink);
+  --color-ink-secondary: var(--ink-secondary);
+  --color-ink-tertiary: var(--ink-tertiary);
+  --color-grid: var(--grid);
+  --color-axis: var(--axis);
+  --color-edge: var(--border);
+  --color-edge-strong: var(--border-strong);
+  --color-demand: var(--series-demand);
+  --color-forecast: var(--series-forecast);
+  --color-replicas: var(--series-replicas);
+  --color-good: var(--status-good);
+  --color-warning: var(--status-warning);
+  --color-serious: var(--status-serious);
+  --color-critical: var(--status-critical);
+}
+
+* {
+  border-color: var(--border);
+}
+
+html,
+body {
+  background: var(--plane);
+  color: var(--ink);
+}
+
+body {
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Columns of figures and axis ticks align; standalone display numbers do not
+   (tabular-nums makes a value like 121 look loose at large sizes). */
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+/* The one piece of ornament in the whole interface: a hairline measurement
+   rule, borrowed from lab instrument faces. Used only on panel headers. */
+.rule-ticks {
+  background-image: repeating-linear-gradient(
+    to right,
+    var(--axis) 0 1px,
+    transparent 1px 6px
+  );
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+::selection {
+  background: var(--series-demand);
+  color: #ffffff;
+}
