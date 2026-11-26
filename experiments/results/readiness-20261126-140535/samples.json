@@ -1,0 +1,16 @@
+{
+  "run_id": "readiness-20261126-140535",
+  "measured_at": "2026-11-26T14:05:39.377637+00:00",
+  "base_replicas": 3,
+  "burst": 3,
+  "cycles": 1,
+  "poll_seconds": 0.25,
+  "metric": "seconds from scale patch to pod Ready (client-side)",
+  "samples_by_warmup_seconds": {
+    "0": [
+      3.4680000000007567,
+      3.4680000000007567,
+      3.4680000000007567
+    ]
+  }
+}

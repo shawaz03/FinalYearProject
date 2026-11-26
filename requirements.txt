@@ -1,0 +1,6 @@
+# Host-side tooling. Pinned exactly (CLAUDE.md §2 rule 5).
+# The target app has its own pins in apps/target-app/requirements.txt.
+
+# Kubernetes control: readiness measurement (T2.3.1) and the arbiter's
+# actuator (T5.3.2).
+kubernetes==37.0.3
