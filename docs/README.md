@@ -1,5 +1,10 @@
 # docs
 
+> **Start here: [`PROJECT_JOURNAL.md`](PROJECT_JOURNAL.md)** — what was reviewed,
+> what was decided and why, what was built and verified, and what is measured.
+> The fastest way for a teammate to catch up.
+
+
 All non-code deliverables. Nothing was deleted in the restructure — files were
 moved and renamed to consistent kebab-case. Original names are recorded below
 so references in older emails, submissions and chats stay resolvable.
