@@ -25,7 +25,7 @@ spec:
     spec:
       containers:
         - name: target-app
-          image: cloudpulse/target-app:0.1.0
+          image: cloudpulse/target-app:0.1.1
           # MUST be IfNotPresent: the image is imported into the node, not
           # published to any registry. Always would make every pod fail
           # ImagePullBackOff trying to reach Docker Hub.

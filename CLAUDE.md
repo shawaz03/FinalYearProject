@@ -370,16 +370,27 @@ real dates in §8 once the submission deadline is fixed.
       load-bearing — the image is imported, not published to any registry.
 
 **T1.3 Observability**
-- [ ] 1.3.1 Apply the plain Prometheus manifest: `scrape_interval: 5s`,
+- [x] 1.3.1 Apply the plain Prometheus manifest: `scrape_interval: 5s`,
       `--storage.tsdb.retention.time=2h`, `kubernetes_sd_configs` limited to our
       namespaces. No Helm, no operator.
       *Done when:* the `monitoring` pod is Running under 400 MB.
-- [ ] 1.3.2 Annotate the target-app pods for discovery
+      → Running at **27 Mi**. Filtering cAdvisor to two series in one namespace
+      is what kept it there; unfiltered it would exceed 1 Gi.
+- [x] 1.3.2 Annotate the target-app pods for discovery
       (`prometheus.io/scrape`, `/port`, `/path`).
       *Done when:* the app appears UP under Prometheus → Targets.
-- [ ] 1.3.3 Record the canonical PromQL set in `deploy/queries.md` (RPS, total
+      → 4/4 targets up: 3 pods by annotation + kubelet-cAdvisor via API proxy.
+- [x] 1.3.3 Record the canonical PromQL set in `deploy/queries.md` (RPS, total
       CPU millicores, per-pod utilisation, p50/p90/p99, ready replicas).
       *Done when:* each query returns non-empty data under load.
+      → all return data: RPS 5.59, CPU 183 m, p50/p90/p99 8.1/14.1/34.6 ms,
+      SLA violation 0.0%, pods 3.
+      **Defect found and fixed here:** the library's default latency histogram
+      has only buckets (0.1, 0.5, 1.0). Every request lands in the first one,
+      so `histogram_quantile` interpolated a fixed p50 = 50 ms and p99 = 99 ms
+      regardless of truth — the real p99 was 34.6 ms, a 2.9x error that looked
+      entirely plausible. `LATENCY_BUCKETS` in the app overrides them and pins
+      an exact 0.1 boundary so the SLO is counted, not estimated.
 
 **T1.4 Capacity sanity (resolves D13)**
 - [x] 1.4.1 Scale manually to the intended `MAX_PODS` and observe scheduling.
@@ -389,8 +400,12 @@ real dates in §8 once the submission deadline is fixed.
       → 15/15 Running, zero Pending. Node allocatable 8 CPU / 5.79 GiB / 110
       pods, so there is headroom above 15. Recorded in `deploy/limits.md`.
 
-> **EXIT GATE 1:** `[ ]` A 10-minute manual load produces a visible spike in all
+> **EXIT GATE 1:** `[~]` A 10-minute manual load produces a visible spike in all
 > queries from T1.3.3, and `MAX_PODS` is empirically proven schedulable.
+> → `MAX_PODS` proven (15/15, zero Pending) and every query verified against a
+> short 600-request burst. The sustained 10-minute profiled run is deliberately
+> deferred to T2.1, where k6 generates it properly — hand-rolling a worse load
+> generator now to tick this box would prove less, not more.
 
 ---
 
@@ -692,9 +707,14 @@ Updated 2026-11-26.
 | Phase | Status |
 |---|---|
 | 0 — Repo & reproducibility | `[~]` T0.1 done; T0.2 (pins, Makefile, seeds) and T0.3 (manifest schema) outstanding |
-| 1–8 | `[ ]` not started |
+| 1 — Cluster & observability | `[~]` T1.1–T1.4 all done; exit gate awaits the k6 sustained run in T2.1 |
+| 2–8 | `[ ]` not started |
 
-Repository is structured and under version control; no application code exists
-yet. **Next action: Phase 0, T0.2.1 — pin `requirements.txt`.**
+Live: k3d cluster `cloudpulse`, target-app 3/3 Ready, Prometheus scraping at 5 s.
+Whole cluster footprint 785 Mi. Measured constants so far are in
+`deploy/limits.md`; canonical queries in `deploy/queries.md`.
+
+**Next action: Phase 2, T2.1 — k6 open-loop load harness.** It unblocks both
+the Phase 1 exit gate and the capacity constant `C`.
 
 Anchor W1–W16 to real calendar dates here once the submission deadline is known.

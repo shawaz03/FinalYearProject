@@ -23,7 +23,7 @@ from typing import Final
 
 from fastapi import FastAPI, Query, Response
 from fastapi.responses import JSONResponse
-from prometheus_fastapi_instrumentator import Instrumentator
+from prometheus_fastapi_instrumentator import Instrumentator, metrics
 
 
 def _env_float(name: str, default: float) -> float:
@@ -127,9 +127,40 @@ def readyz(response: Response) -> JSONResponse:
     return JSONResponse(content=payload, status_code=200 if warm else 503)
 
 
-# Exposes /metrics with http_requests_total and http_request_duration_seconds.
+# Latency histogram buckets, in seconds.
+#
+# The library default for http_request_duration_seconds is (0.1, 0.5, 1.0) —
+# only three buckets. Every request we serve lands under 100 ms, so all of them
+# fall in the first bucket and histogram_quantile() has nothing to work with:
+# it interpolates linearly across 0–100 ms and reports p50 = 50 ms, p99 = 99 ms
+# no matter what the real latencies are. Those are artifacts, not measurements.
+#
+# These buckets are dense between 5 ms and 300 ms, which is where this service
+# actually lives, and place an exact boundary at 0.1 so the Phase 7 SLO
+# ("requests slower than 100 ms") is counted rather than estimated.
+#
+# Client-side k6 timings remain the authority for reported results (§3.5);
+# these drive the live dashboard and make it trustworthy.
+LATENCY_BUCKETS: Final[tuple] = (
+    0.005, 0.010, 0.015, 0.020, 0.030, 0.040, 0.050, 0.075,
+    0.100,  # the SLO boundary — keep this one
+    0.150, 0.200, 0.300, 0.500, 1.000, 2.500, 5.000,
+    float("inf"),
+)
+
 # Probe and metrics endpoints are excluded: kubelet probes every few seconds,
 # and that traffic would otherwise inflate the RPS signal we forecast on.
-Instrumentator(
+_instrumentator = Instrumentator(
     excluded_handlers=["/healthz", "/readyz", "/metrics"],
-).instrument(app).expose(app, endpoint="/metrics", include_in_schema=False)
+)
+# Added explicitly so the buckets above replace the library defaults. Calling
+# .add() before .instrument() suppresses the implicit default metric set.
+_instrumentator.add(
+    metrics.default(
+        latency_highr_buckets=LATENCY_BUCKETS,
+        latency_lowr_buckets=LATENCY_BUCKETS,
+    )
+)
+_instrumentator.instrument(app).expose(
+    app, endpoint="/metrics", include_in_schema=False
+)
