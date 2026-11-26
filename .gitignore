@@ -18,6 +18,8 @@ build/
 .env.*
 !.env.example
 kubeconfig
+.kube/
+config.kubeconfig
 *.kubeconfig
 
 # ---- ML artifacts (regenerate via `make train`) ----
