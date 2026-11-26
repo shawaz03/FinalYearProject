@@ -60,7 +60,7 @@ underneath it.
  load/            k6 (open-loop) ──HTTP──► apps/target-app (Deployment, N pods)
                                                  │ /metrics
                                                  ▼
- deploy/          kube-prometheus-stack (scrape 5s)
+ deploy/          Prometheus (scrape 5s, 2h retention)
                                                  │ PromQL
                                                  ▼
  services/collector  ──► Postgres `telemetry` (+ Parquet export for training)
@@ -115,7 +115,7 @@ H  >=  t_ready_p95  +  t_decision_interval  +  t_safety
 ```
 
 `t_ready_p95` is the measured p95 from pod creation to Ready (Phase 2, T2.3).
-If pods are Ready in 4 s on a warm Minikube node, H = 60 s is not justified and
+If pods are Ready in 4 s on a warm k3d node, H = 60 s is not justified and
 the whole premise collapses — which is why Phase 2 also *introduces a
 controlled, declared startup delay* and sweeps it (§3.6).
 
@@ -157,7 +157,7 @@ unfair to us. Required:
 
 ### 3.6 Startup latency must be a declared experimental variable
 
-If the image is pre-pulled on a single Minikube node, pods become Ready in
+If the image is already imported into the single k3d node, pods become Ready in
 seconds. Reactive HPA then performs *fine*, and CloudPulse shows no benefit —
 the experiment would honestly refute our own thesis.
 
@@ -173,13 +173,40 @@ any single win claim.
 
 | Area | Choice | Note |
 |---|---|---|
-| Cluster | Minikube, **single node**, `--cpus=4 --memory=8192` | the "2+ nodes" line in the blueprint is dropped; it buys nothing and costs RAM |
+| Cluster | **k3d** (K3s in Docker), single node | replaces Minikube: ~600 MB control plane vs ~2 GB, ~20 s start vs ~2 min, and `metrics-server` is built in (HPA needs it). K3s is CNCF-certified Kubernetes, so the viva claim "we deployed on a real Kubernetes cluster" holds. The blueprint's "2+ nodes" is dropped — it buys nothing and costs RAM |
 | Target app | FastAPI + `prometheus-fastapi-instrumentator` | pod requests `50m` CPU / `64Mi` — see Phase 1, T1.4 |
-| Metrics | kube-prometheus-stack via Helm | plus `minikube addons enable metrics-server` (HPA needs it) |
+| Metrics | **plain Prometheus manifest**, `kubernetes_sd_configs` | NOT kube-prometheus-stack: that bundles Grafana + Alertmanager (~500 MB) which the Phase 6 dashboard makes redundant. No Helm, no operator, no ServiceMonitor CRDs. Retention 2h — experiments run ~15 min and the collector persists to Postgres anyway |
 | Storage | **plain PostgreSQL 16** | TimescaleDB dropped — ops risk, no research value at this data volume |
 | Load | **k6** (open-loop, constant arrival rate) | Locust is closed-loop by default and hides overload latency (coordinated omission). Keep Locust only for interactive demo flavour |
 | ML | scikit-learn / LightGBM quantile + MAPIE | pin MAPIE exactly; its v1 API renamed the regressors |
 | Dashboard | Next.js + Recharts, WebSocket | Phase 6 only; it is a presentation layer, not a contribution |
+
+### 3.7.1 What runs inside the cluster, and what does not
+
+Only two things belong in the cluster, because only they have to be there:
+
+| In the cluster | Why |
+|---|---|
+| `target-app` | it is the thing being scaled |
+| Prometheus | it scrapes pods from inside the pod network |
+
+Everything else — Postgres, collector, forecaster, arbiter, dashboard — runs on
+the **host** during development. The arbiter reaches the cluster through the
+kubeconfig just as well from outside it.
+
+Two reasons, and the second matters more:
+
+1. Memory. Keeps the cluster near ~2 GB instead of ~5.4 GB on a 16 GB laptop.
+2. Iteration speed. No rebuild-redeploy cycle to test a change to the control
+   logic — edit, save, run. You will change the arbiter a hundred times.
+
+They get containerised in Phase 6 (T6.3) for the demo, which is the point at
+which "it works on my host" stops being good enough.
+
+**Laptop budget (measured 2026-11-26: 15.6 GB total, only 4.1 GB free at idle).**
+`~/.wslconfig` caps WSL2 at 6 GB with `autoMemoryReclaim=gradual`; without it
+WSL2 takes half the RAM and never hands it back. Close Chrome tabs, ChatGPT and
+WhatsApp before benchmark runs — background load adds noise to latency numbers.
 
 ### 3.8 Repository layout
 
@@ -231,7 +258,7 @@ Status of each is tracked in the phase tables below.
 | D11 | Baseline is *untuned default* HPA — a straw man. Must tune HPA `behavior:` and add a naive-predictor ablation and an oracle upper bound | High |
 | D12 | No repetitions or seeds defined, yet ANOVA/t-tests are promised; n=1 supports no statistics | High |
 | D13 | `MAX_PODS=20` plus Prometheus, Grafana, Postgres and Next.js will not schedule on a student laptop; pods go `Pending` and the benchmark becomes meaningless | High |
-| D14 | Cost in `$/hour` on local Minikube is fictional; use **pod-seconds** as the primary metric, dollars only as a derived display with stated assumptions | Medium |
+| D14 | Cost in `$/hour` on a local k3d cluster is fictional; use **pod-seconds** as the primary metric, dollars only as a derived display with stated assumptions | Medium |
 | D15 | No failure/degradation handling for forecaster or K8s API (§3.5) | Medium |
 | D16 | Alibaba trace resolution (1 min) mismatches a 30 s decision loop, and its domain differs from our pods; role must be narrowed to pre-training/supplementary | Medium |
 | D17 | Chronological split and leakage discipline unstated; the calibration set must sit between train and test in time | Medium |
@@ -318,20 +345,24 @@ real dates in §8 once the submission deadline is fixed.
       *Done when:* `curl localhost:8000/metrics` returns `http_requests_total`.
 - [ ] 1.1.2 Implement `WARMUP_SECONDS` (env): `/readyz` returns 503 until elapsed (§3.6).
       *Done when:* with `WARMUP_SECONDS=30` the container reports NotReady for ~30 s.
-- [ ] 1.1.3 Dockerfile, multi-stage, pinned base; build into Minikube's daemon.
-      *Done when:* `minikube image ls` shows the tagged image.
+- [ ] 1.1.3 Dockerfile, multi-stage, pinned base; import into the k3d cluster.
+      *Done when:* `k3d image import` succeeds and a pod runs the tagged image.
 
 **T1.2 Cluster**
-- [ ] 1.2.1 `minikube start --cpus=4 --memory=8192`; enable `metrics-server`.
-      *Done when:* `kubectl top pods` returns values.
+- [ ] 1.2.1 `k3d cluster create cloudpulse` (servers 1, Traefik disabled).
+      *Done when:* `kubectl get nodes` shows Ready and `kubectl top pods` returns
+      values — metrics-server ships with K3s, nothing to enable.
 - [ ] 1.2.2 Deployment + Service manifests with explicit `resources.requests` =
       `50m` CPU / `64Mi` and matching limits.
       *Done when:* `kubectl get deploy target-app` shows 3/3 Ready.
 
 **T1.3 Observability**
-- [ ] 1.3.1 Install kube-prometheus-stack via Helm, `scrapeInterval: 5s`.
-      *Done when:* all `monitoring` pods are Running.
-- [ ] 1.3.2 ServiceMonitor for the target app.
+- [ ] 1.3.1 Apply the plain Prometheus manifest: `scrape_interval: 5s`,
+      `--storage.tsdb.retention.time=2h`, `kubernetes_sd_configs` limited to our
+      namespaces. No Helm, no operator.
+      *Done when:* the `monitoring` pod is Running under 400 MB.
+- [ ] 1.3.2 Annotate the target-app pods for discovery
+      (`prometheus.io/scrape`, `/port`, `/path`).
       *Done when:* the app appears UP under Prometheus → Targets.
 - [ ] 1.3.3 Record the canonical PromQL set in `deploy/queries.md` (RPS, total
       CPU millicores, per-pod utilisation, p50/p90/p99, ready replicas).
