@@ -35,20 +35,10 @@ if str(_REPO_ROOT) not in sys.path:
 
 from cloudpulse_core.config import PROJECT_ROOT, SLO_MS
 from experiments.k6_summary import parse_k6_summary
+from services.collector.promql import PER_POD_CPU_PCT_PROMQL
 
 NAMESPACE = "cloudpulse"
 DEPLOYMENT = "target-app"
-
-# Canonical query #3 from deploy/queries.md (per-pod CPU utilisation % against
-# container_spec_cpu_quota — never against requests).
-PER_POD_CPU_PCT_PROMQL = (
-    "max("
-    'rate(container_cpu_usage_seconds_total{namespace="cloudpulse",container="target-app"}[1m])'
-    " / on(pod) group_left "
-    '(container_spec_cpu_quota{namespace="cloudpulse",container="target-app"}'
-    ' / container_spec_cpu_period{namespace="cloudpulse",container="target-app"})'
-    ") * 100"
-)
 
 # Fallback query when cAdvisor quota/period gauges are unavailable; divided by
 # the Deployment's configured CPU limit in cores (e.g. 0.25 for 250m).

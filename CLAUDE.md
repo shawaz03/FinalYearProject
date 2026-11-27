@@ -487,32 +487,46 @@ real dates in §8 once the submission deadline is fixed.
 **Depends on:** Phase 2. **Owner:** M1 + M3. **Resolves:** D16, D17.
 
 **T3.1 Collector**
-- [ ] 3.1.1 Postgres schema `telemetry(ts, rps, cpu_millicores_total, mem_bytes,
+- [~] 3.1.1 Postgres schema `telemetry(ts, rps, cpu_millicores_total, mem_bytes,
       p50, p90, p99, ready_replicas, profile, run_id)`.
       *Done when:* `make collect` writes rows at a steady 5 s cadence.
-- [ ] 3.1.2 Scraper service using `prometheus-api-client`, resilient to gaps.
+      → `services/collector/schema.sql`, `promql.py`, `collector.py`, and
+      `export_parquet.py` implemented; unit-tested with mocked Prometheus. Live
+      5 s Postgres write pending on the 15.6 GB cluster laptop.
+- [~] 3.1.2 Scraper service using `prometheus-api-client`, resilient to gaps.
       *Done when:* a 30-minute run has no missing timestamps and no duplicates.
+      → 5 s UTC grid alignment, gap backfill (`reconcile_time_grid`), and NaN
+      quantile tolerance verified over a 30-minute (360-tick) test in
+      `tests/test_collector.py`; live 30-min cluster run pending.
 
 **T3.2 Dataset generation**
 - [ ] 3.2.1 Run all three profiles ×3 at a **fixed** replica count, to gather
       unconfounded demand data.
       *Done when:* ≥ 6 hours of 5 s telemetry is exported to `ml/data/raw/*.parquet`.
-- [ ] 3.2.2 Narrow the Alibaba trace to supplementary pre-training only;
+- [x] 3.2.2 Narrow the Alibaba trace to supplementary pre-training only;
       resample to 5 s or drop it, and document the decision.
       *Done when:* `ml/data/README.md` states each dataset's role and resolution.
+      → `ml/data/README.md` documents the 5 s live Parquet dataset, interleaved
+      3-round collection rule, and why the 1-min Alibaba trace is dropped from
+      the primary loop.
 
 **T3.3 Features (shared module)**
-- [ ] 3.3.1 `cloudpulse_core/features.py`: lags, rolling mean/std, first
+- [x] 3.3.1 `cloudpulse_core/features.py`: lags, rolling mean/std, first
       difference, slope, time-of-day sin/cos — all computed on `D(t)` (§3.2).
       *Done when:* the same function is importable by both `ml/` and
       `services/forecaster/`.
-- [ ] 3.3.2 Chronological split: train / calibration / test, strictly ordered in
+      → Implemented in `cloudpulse_core/features.py` (strictly causal, grouped
+      per `run_id`, exported via `cloudpulse_core`) and verified in `tests/test_features.py`.
+- [x] 3.3.2 Chronological split: train / calibration / test, strictly ordered in
       time, with a gap of ≥ H to prevent leakage.
       *Done when:* a unit test asserts `max(train.ts) + H <= min(cal.ts)`, and
       likewise between calibration and test.
+      → `ml/prepare_dataset.py` enforces `max(train.ts) + H <= min(cal.ts)` and
+      `max(cal.ts) + H <= min(test.ts)`; verified in `tests/test_leakage.py`.
 
-> **EXIT GATE 3:** `[ ]` One command rebuilds the dataset from raw parquet; the
-> leakage test is green; no feature code is duplicated between training and serving.
+> **EXIT GATE 3:** `[~]` `ml/prepare_dataset.py` and `tests/test_leakage.py`
+> + shared `cloudpulse_core/features.py` are green on synthetic data; full
+> gate closes after the cluster laptop collects `>= 6 h` `ml/data/raw/*.parquet`.
 
 ---
 
@@ -751,7 +765,8 @@ Updated 2026-11-27.
 | 0 — Repo & reproducibility | `[~]` T0.1, T0.2.1, T0.3.1 done; T0.2.2 (`cpctl.py` verified, `make` pending on Linux/WSL) & T0.2.3 (`seeds.py` verified on LightGBM, re-check on `ml/train.py`) |
 | 1 — Cluster & observability | `[~]` T1.1 & T1.3 done (`21-prometheus-config.yaml` updated to retain quota/period); T1.2.2 & T1.4.1 updated to `250m`/`128Mi` Guaranteed QoS (re-verify on cluster); exit gate awaits T2.1 |
 | 2 — Capacity & load harness | `[~]` T2.1/T2.2/T2.3 scripts, profiles, and unit tests complete; live cluster measurements (`C`, 20-cycle readiness, `H`) pending on 15.6 GB cluster laptop |
-| 3–8 | `[ ]` not started |
+| 3 — Dataset & feature pipeline | `[~]` T3.2.2, T3.3.1, T3.3.2 done (`collector/`, `features.py`, `prepare_dataset.py` unit-tested); live `>= 6 h` telemetry collection (`T3.1`/`T3.2.1`) pending on cluster laptop |
+| 4–8 | `[ ]` not started |
 
 Live: k3d cluster `cloudpulse`, target-app 3/3 Ready, Prometheus scraping at 5 s.
 Whole cluster footprint 785 Mi. Measured constants so far are in

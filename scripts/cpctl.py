@@ -97,12 +97,13 @@ def cmd_setup(_: argparse.Namespace) -> int:
     )
 
 
-def cmd_test(_: argparse.Namespace) -> int:
+def cmd_test(args: argparse.Namespace) -> int:
     py = venv_python()
     if not py.exists():
         print("ERROR: .venv not found. Run `setup` first.", file=sys.stderr)
         return 1
-    return _run([str(py), "-m", "pytest", "-v", "tests"])
+    extra = getattr(args, "extra", [])
+    return _run([str(py), "-m", "pytest", "-v", "tests", *extra])
 
 
 def cmd_cluster_up(_: argparse.Namespace) -> int:
@@ -135,24 +136,27 @@ def cmd_deploy(_: argparse.Namespace) -> int:
     )
 
 
-def cmd_collect(_: argparse.Namespace) -> int:
+def cmd_collect(args: argparse.Namespace) -> int:
     script = _require_script("services/collector/collector.py", "Phase 3 (T3.1)")
     if not script:
         return 2
-    return _run([str(venv_python()), str(script)])
+    extra = getattr(args, "extra", [])
+    return _run([str(venv_python()), str(script), *extra])
 
 
-def cmd_train(_: argparse.Namespace) -> int:
+def cmd_train(args: argparse.Namespace) -> int:
     script = _require_script("ml/train.py", "Phase 4 (T4.2)")
     if not script:
         return 2
-    return _run([str(venv_python()), str(script)])
+    extra = getattr(args, "extra", [])
+    return _run([str(venv_python()), str(script), *extra])
 
 
-def cmd_serve(_: argparse.Namespace) -> int:
+def cmd_serve(args: argparse.Namespace) -> int:
     script = _require_script("services/forecaster/app.py", "Phase 4 (T4.5)")
     if not script:
         return 2
+    extra = getattr(args, "extra", [])
     return _run(
         [
             str(venv_python()),
@@ -163,22 +167,25 @@ def cmd_serve(_: argparse.Namespace) -> int:
             "0.0.0.0",
             "--port",
             "8001",
+            *extra,
         ]
     )
 
 
-def cmd_bench(_: argparse.Namespace) -> int:
+def cmd_bench(args: argparse.Namespace) -> int:
     script = _require_script("experiments/run.py", "Phase 7 (T7.1)")
     if not script:
         return 2
-    return _run([str(venv_python()), str(script)])
+    extra = getattr(args, "extra", [])
+    return _run([str(venv_python()), str(script), *extra])
 
 
-def cmd_analyse(_: argparse.Namespace) -> int:
+def cmd_analyse(args: argparse.Namespace) -> int:
     script = _require_script("analysis/metrics.py", "Phase 7 (T7.6)")
     if not script:
         return 2
-    return _run([str(venv_python()), str(script)])
+    extra = getattr(args, "extra", [])
+    return _run([str(venv_python()), str(script), *extra])
 
 
 def cmd_clean(_: argparse.Namespace) -> int:
@@ -213,7 +220,8 @@ def main(argv: list[str] | None = None) -> int:
         description="CloudPulse cross-platform workflow runner."
     )
     parser.add_argument("target", nargs="?", default="help", choices=sorted(COMMANDS))
-    args = parser.parse_args(argv)
+    args, extra = parser.parse_known_args(argv)
+    args.extra = extra
     return COMMANDS[args.target](args)
 
 

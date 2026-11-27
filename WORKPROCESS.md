@@ -524,9 +524,33 @@ against preliminary `readiness-20261126-140654/samples.json`.
 4. Run `experiments/measure_capacity.py` (`T2.2` → writes `deploy/capacity.yaml`)
 5. Run `experiments/measure_readiness.py --cycles 20` then `scripts/derive_horizon.py` (`T2.3` → writes `deploy/readiness.md` & `services/arbiter/config.yaml`)
 
+### Phase 3 offline engineering — Collector, shared causal features & split guard (`T3.1`–`T3.3`)
+
+**Artifacts added:**
+- `services/collector/` — PostgreSQL DDL (`schema.sql` with `PRIMARY KEY (run_id, ts)`),
+  canonical PromQL module (`promql.py`, also imported by `measure_capacity.py`),
+  5 s grid-aligned collector (`collector.py`) with gap reconciliation, and
+  `export_parquet.py`
+- `cloudpulse_core/features.py` — strictly causal workload features on `D(t) = rps`
+  (`FEATURE_COLUMNS`, `build_features`, `build_supervised_dataset`,
+  `extract_latest_features`), grouped by `run_id` to block cross-run target leaks
+- `ml/prepare_dataset.py` — chronological `train | >= H | cal | >= H | test`
+  splitter (`chronological_split_with_gap` + `assert_no_temporal_leakage`)
+- `ml/data/README.md` — documents the 5 s live Parquet dataset, interleaved
+  3-round collection order, and dropping the 1-minute Alibaba trace (`T3.2.2`)
+- `tests/test_collector.py`, `tests/test_features.py`, `tests/test_leakage.py`
+
+**Catch during tests:** `pandas.DataFrame.sort_values("ts")` defaults to unstable
+`quicksort`, which reordered duplicate-timestamp entries before `keep="last"`.
+Changed to `kind="mergesort"` in `services/collector/collector.py`.
+
+**Checks run:** `scripts/cpctl.py test` (all 32 tests green across Phases 0–3,
+including 30-min grid reconciliation, strict feature causality, cross-run
+isolation, and `>= H` chronological leakage enforcement).
+
 ### Next actions
 
 | Step | Where | Action |
 |---|---|---|
-| Cluster sync | 15.6 GB laptop | Pull, apply `deploy/k8s/`, verify `MAX_PODS`, run `T2.1`–`T2.3` and push constants |
-| Phase 3 / 6.1 | This laptop (7.9 GB) | Audit `dashboard/` UI (`npm run dev`), or build `services/collector/` + `cloudpulse_core/features.py` with mocked tests |
+| Cluster sync | 15.6 GB laptop | Pull, apply `deploy/k8s/`, verify `MAX_PODS`, run `T2.1`–`T2.3` + `T3.2.1` (`>= 6 h` collection) and push |
+| Phase 5 / 6.1 | This laptop (7.9 GB) | Audit `dashboard/` UI (`npm run dev`), or implement Phase 5 `services/arbiter/` control logic + mocked tests |
