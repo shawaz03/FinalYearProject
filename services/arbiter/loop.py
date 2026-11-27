@@ -54,6 +54,17 @@ class TelemetrySourceProtocol(Protocol):
     def read_per_pod_cpu_pct(self) -> float: ...
 
 
+class ForecasterProtocol(Protocol):
+    def predict(
+        self,
+        observations: list[dict[str, Any]],
+        *,
+        feedback: dict[str, Any] | None = None,
+    ) -> ForecastInput: ...
+
+    def close(self) -> None: ...
+
+
 class PrometheusTelemetrySource:
     """Reads canonical Prometheus RPS history and per-pod CPU % (`queries.md`)."""
 
@@ -169,7 +180,7 @@ class ArbiterLoop:
         *,
         limits: ArbiterLimits,
         telemetry: TelemetrySourceProtocol,
-        forecaster: HttpForecasterClient,
+        forecaster: ForecasterProtocol,
         actuator: KubernetesScaleActuator,
         decision_logger: DecisionLogger,
         controller: ArbiterController | None = None,
