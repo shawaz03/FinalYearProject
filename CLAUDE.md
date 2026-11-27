@@ -661,24 +661,49 @@ real dates in §8 once the submission deadline is fixed.
 **Depends on:** Phase 5. **Owner:** M4 (UI) + M3 (WS).
 
 **T6.1 Streaming**
-- [ ] 6.1.1 WebSocket broadcasting telemetry, predictions and decisions.
+- [~] 6.1.1 WebSocket broadcasting telemetry, predictions and decisions.
       *Done when:* `wscat` shows messages at the decision cadence.
+      → `StreamHub`, `create_ws_app`, `LiveWsServer`, and `--replay`
+      implemented in `services/arbiter/ws.py`, integrated into live
+      `services/arbiter/loop.py` (`--ws-port`), and verified offline in
+      `tests/test_ws.py`; live cluster `wscat`/Prometheus run pending on the
+      15.6 GB cluster laptop.
 
 **T6.2 Dashboard**
-- [ ] 6.2.1 Next.js + Recharts prediction-cone chart (actual, point, shaded band).
+- [~] 6.2.1 Next.js + Recharts prediction-cone chart (actual, point, shaded band).
       *Done when:* the band visibly leads the actual line during a `flash` run.
-- [ ] 6.2.2 Replica gauge, client-side p99 latency panel, decision log table.
+      → `mergeSeries` leading 5 s horizon (`dashboard/src/lib/series.ts`),
+      `90% interval` band swatch (`dashboard/src/components/charts/timeline.tsx`),
+      and `useCloudPulseStream` (`dashboard/src/lib/use-cloudpulse-stream.ts`)
+      verified via Chromium audit against `services/arbiter/ws.py --replay`;
+      live cluster `flash` check pending.
+- [~] 6.2.2 Replica gauge, client-side p99 latency panel, decision log table.
       *Done when:* each panel updates live and matches the database for the same run.
-- [ ] 6.2.3 Pod-seconds counter (not dollars by default), with a toggle to a
+      → Wired cleanly to WebSocket `snapshot`/`telemetry`/`decision` frames and
+      verified visually in Chart View + null-safe Table View; live Postgres
+      `arbiter_decisions` comparison pending on cluster laptop.
+- [x] 6.2.3 Pod-seconds counter (not dollars by default), with a toggle to a
       dollar estimate that **prints its price assumption on screen** (D14).
       *Done when:* the cost shown equals the integral of replicas over time.
+      → `podSeconds()` integration rendered by default in `03 Cost` (`show $`
+      / `hide $` toggle revealing `$0.0425 / pod-hour` on demand), verified in
+      Chromium audit (`0` console errors).
 
 **T6.3 Full-loop rehearsal**
-- [ ] 6.3.1 One scripted end-to-end demo run, `make demo`.
+- [~] 6.3.1 One scripted end-to-end demo run, `make demo`.
       *Done when:* a single command brings up the loop and drives a `flash`
       profile with no manual steps.
+      → Multi-stage non-root Dockerfiles + pinned `requirements.txt` added for
+      `services/collector/` and `services/arbiter/`; `scripts/demo.py`,
+      `Makefile` (`demo:`), and `scripts/cpctl.py demo` added and verified via
+      `tests/test_demo.py` (preflight, HPA refusal, 2× `--mode replay` runs);
+      live cluster `make demo` execution pending on the 15.6 GB cluster laptop.
 
-> **EXIT GATE 6:** `[ ]` `make demo` runs clean twice in a row on a fresh cluster.
+> **EXIT GATE 6:** `[~]` Streaming WS (`services/arbiter/ws.py`), Dockerfiles,
+> `scripts/demo.py` (`make demo`), and `dashboard/` live WS UI pass offline
+> `pytest` (`tests/test_ws.py`, `tests/test_demo.py`), `npm run lint && npm run build`,
+> and Chromium replay verification; running `make demo` cleanly twice in a row
+> on a fresh cluster closes the gate on the 15.6 GB laptop.
 
 ---
 
@@ -805,13 +830,17 @@ Updated 2026-11-27.
 | 3 — Dataset & feature pipeline | `[~]` T3.2.2, T3.3.1, T3.3.2 done (`collector/`, `features.py`, `prepare_dataset.py` unit-tested); live `>= 6 h` telemetry collection (`T3.1`/`T3.2.1`) pending on cluster laptop |
 | 4 — Forecasting & uncertainty | `[~]` Baselines, LightGBM CQR, ACI (`cloudpulse_core/aci.py`), ablation, FastAPI `/predict` (`p99 < 200 ms`), and Dockerfile complete & unit-tested; final fit/metrics await `T3.2.1` telemetry |
 | 5 — Decision & control plane | `[~]` `services/arbiter/` (`capacity.py`, `controller.py`, `actuator.py`, `decision_log.py`, `loop.py`) complete & verified with offline `pytest` suite; live `flash` cluster test awaits Phase 2/4 artifacts |
-| 6–8 | `[ ]` not started |
+| 6 — Closed-loop integration & dashboard | `[~]` `services/arbiter/ws.py` (with live `loop.py --ws-port` bridge), `services/{collector,arbiter}/Dockerfile`, `scripts/demo.py` (`make demo` / `cpctl.py demo`), and `dashboard/` WebSocket UI + cost toggle verified offline (`62` pytest pass, Next.js lint/build pass, Chromium replay audit pass); real cluster `make demo` runs await 15.6 GB cluster laptop |
+| 7–8 | `[ ]` not started |
 
 Live: k3d cluster `cloudpulse`, target-app 3/3 Ready, Prometheus scraping at 5 s.
 Whole cluster footprint 785 Mi. Measured constants so far are in
 `deploy/limits.md`; canonical queries in `deploy/queries.md`.
 
-**Next action: Phase 2, T2.1 — k6 open-loop load harness.** It unblocks both
-the Phase 1 exit gate and the capacity constant `C`.
+**Next action:** offline code for Phases 0–6 is complete. On the **7.9 GB dev
+laptop**, proceed next to offline scaffolding in Phase 7 (`T7.1` experiment
+runner & `T7.6` `analysis/metrics.py`); on the **15.6 GB cluster laptop**, run
+Phase 2 (`T2.1`–`T2.3`), Phase 3 (`T3.2.1`), Phase 4 training, and Phases 5–6
+live cluster gates (`make demo` twice in a row).
 
 Anchor W1–W16 to real calendar dates here once the submission deadline is known.

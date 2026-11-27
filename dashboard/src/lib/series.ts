@@ -4,6 +4,10 @@ import type { ForecastFrame, TelemetryFrame } from "./telemetry";
  * One row of the aligned timeline. Every chart in the stack renders from this
  * same array and the same x domain, so the three plots line up exactly and a
  * crosshair means the same instant in all of them.
+ *
+ * Rows beyond the latest measured telemetry represent the leading forecast
+ * horizon `[now, now + H]`: measured fields are `null` while `fPoint`,
+ * `fLower`, `fUpper`, and `fRange` extend forward ahead of the demand curve.
  */
 export interface Row {
   t: number;
@@ -22,17 +26,15 @@ export interface Row {
   capacity: number | null;
 }
 
+const STEP_MS = 5_000;
+
 function lerp(a: number, b: number, w: number) {
   return a + (b - a) * w;
 }
 
 /**
- * Interpolate the forecast series onto the telemetry timestamps.
- *
- * Forecasts arrive every 15s while telemetry is every 5s. Rendering the sparse
- * series directly would leave the band full of gaps, and stacked areas with
- * nulls render unpredictably. Interpolating gives a continuous band without
- * inventing precision: the interpolated points sit between two real forecasts.
+ * Interpolate the forecast series onto telemetry timestamps plus any leading
+ * horizon timestamps up to `max(forecasts.targetT)`.
  */
 export function mergeSeries(
   telemetry: TelemetryFrame[],
@@ -40,13 +42,35 @@ export function mergeSeries(
   capacityRps: number,
 ): Row[] {
   const byTarget = [...forecasts].sort((a, b) => a.targetT - b.targetT);
+  const byTime = new Map<number, TelemetryFrame>();
+  for (const frame of telemetry) {
+    byTime.set(frame.t, frame);
+  }
+
+  const times = new Set<number>(telemetry.map((f) => f.t));
+  if (telemetry.length > 0 && byTarget.length > 0) {
+    const lastTelemetryT = telemetry[telemetry.length - 1].t;
+    const maxTargetT = byTarget[byTarget.length - 1].targetT;
+    for (let t = lastTelemetryT + STEP_MS; t < maxTargetT; t += STEP_MS) {
+      times.add(t);
+    }
+    if (maxTargetT > lastTelemetryT) {
+      times.add(maxTargetT);
+    }
+  } else {
+    for (const f of byTarget) {
+      times.add(f.targetT);
+    }
+  }
+
+  const sortedTimes = [...times].sort((a, b) => a - b);
 
   const at = (t: number) => {
     if (byTarget.length === 0) return null;
     if (t < byTarget[0].targetT || t > byTarget[byTarget.length - 1].targetT) {
       return null;
     }
-    let hi = byTarget.findIndex((f) => f.targetT >= t);
+    const hi = byTarget.findIndex((f) => f.targetT >= t);
     if (hi < 0) return null;
     if (hi === 0) return byTarget[0];
     const lo = byTarget[hi - 1];
@@ -60,21 +84,22 @@ export function mergeSeries(
     };
   };
 
-  return telemetry.map((frame) => {
-    const f = at(frame.t);
+  return sortedTimes.map((t) => {
+    const frame = byTime.get(t);
+    const f = at(t);
     const lower = f ? round(f.lower, 1) : null;
     const upper = f ? round(f.upper, 1) : null;
     return {
-      t: frame.t,
-      rps: frame.rps,
+      t,
+      rps: frame ? frame.rps : null,
       fPoint: f ? round(f.point, 1) : null,
       fLower: lower,
       fUpper: upper,
       fRange: lower != null && upper != null ? [lower, upper] : null,
-      replicas: frame.readyReplicas,
-      desired: frame.desiredReplicas,
-      p99: frame.p99,
-      capacity: round(frame.readyReplicas * capacityRps, 1),
+      replicas: frame ? frame.readyReplicas : null,
+      desired: frame ? frame.desiredReplicas : null,
+      p99: frame ? frame.p99 : null,
+      capacity: frame ? round(frame.readyReplicas * capacityRps, 1) : null,
     };
   });
 }

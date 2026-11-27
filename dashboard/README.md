@@ -9,20 +9,30 @@ npm run dev        # http://localhost:3000
 
 Runs on the **host**, not in the cluster (CLAUDE.md §3.7.1).
 
-## Status: simulated
+## Status: simulated fallback + live WebSocket feed (`T6.1`–`T6.2`)
 
-There is no arbiter yet, so the dashboard renders a seeded simulation of a
-`flash` run and says so in the header at all times. A dashboard that cannot
-tell you whether its numbers are real is worse than no dashboard.
+The dashboard renders the seeded `simulateRun()` fallback by default (`simulated`
+badge in the header) and connects via `src/lib/use-cloudpulse-stream.ts`
+(`ws://127.0.0.1:8002/ws/stream` by default, or `NEXT_PUBLIC_WS_URL`) when
+`connect ws` is clicked. The header badge reflects `Meta.live` (`live` for
+cluster runs, `ws replay` for `services/arbiter/ws.py --replay`, `simulated`
+for client-side simulation) so the operator always sees data provenance.
 
-Swapping in live data is one change: replace `simulateRun()` in
-`src/app/page.tsx` with the WebSocket feed. Nothing else moves.
+Panel `03 Cost` renders `pod-seconds` as the primary cost metric and hides the
+derived dollar estimate unless toggled via `show $` (which prints the
+`$0.0425 / pod-hour` price assumption on screen per D14).
 
-## It pins the WebSocket contract
+```bash
+# Offline WebSocket replay + UI check (no cluster required)
+python -m services.arbiter.ws --replay --host 127.0.0.1 --port 8002
+npm run dev   # http://localhost:3000 -> click "connect ws"
+```
+
+## WebSocket contract
 
 `src/lib/telemetry.ts` defines `TelemetryFrame`, `ForecastFrame`, `Decision`
-and `RunMeta`. **These are the message shapes T6.1 must emit.** Building the UI
-first turned an open question into a specification.
+and `RunMeta`. `services/arbiter/ws.py` (`T6.1`) emits `snapshot`,
+`telemetry`, `forecast`, and `decision` JSON frames matching these exact shapes.
 
 Field semantics follow `deploy/queries.md`: `rps` is the replica-independent
 demand signal (never CPU percent — CLAUDE.md §3.2), and latency quantiles are
@@ -116,8 +126,14 @@ fight the data for attention. GSAP is used directly where motion is warranted.
 - Light and dark both validated against their own surface
 - Crosshair tooltips enhance, never gate: values are reachable in the table
 
-## Not done
+## Verification status
 
-Visual inspection. The build compiles and the page returns HTTP 200, but no
-one has looked at the rendered output yet — open it and check for label
-collisions, geometry and overflow before treating it as finished.
+- **Offline UI + WebSocket replay verified (2026-11-27):** `npm run lint` and
+  `npm run build` pass cleanly on Next.js 16.4.6. Browser audit on Chromium
+  verified Sand & Espresso themes, Table View, GSAP Replay, `show $` / `hide $`
+  cost-assumption toggle, leading `t + H` forecast band (`90% interval` legend
+  swatch), and live WebSocket streaming from `services/arbiter/ws.py --replay`
+  with 0 console errors and 0 horizontal overflow (`762x621` & `1440x900`).
+- **Pending on 15.6 GB cluster laptop:** live `flash` cluster run via
+  `make demo` (`scripts/demo.py`) confirming live Prometheus + arbiter WS
+  match against PostgreSQL `arbiter_decisions`.

@@ -20,6 +20,7 @@ import argparse
 import logging
 import math
 import sys
+import threading
 import time
 from collections import deque
 from datetime import datetime, timedelta, timezone
@@ -173,6 +174,8 @@ class ArbiterLoop:
         decision_logger: DecisionLogger,
         controller: ArbiterController | None = None,
         dry_run: bool = False,
+        on_forecast: Callable[[ForecastInput], None] | None = None,
+        on_decision: Callable[[DecisionRecord, ActuationResult | None], None] | None = None,
         clock_fn: Callable[[], datetime] = lambda: datetime.now(timezone.utc),
         monotonic_fn: Callable[[], float] = time.monotonic,
     ) -> None:
@@ -183,6 +186,8 @@ class ArbiterLoop:
         self.decision_logger = decision_logger
         self.controller = controller or ArbiterController(limits)
         self.dry_run = dry_run
+        self._on_forecast = on_forecast
+        self._on_decision = on_decision
         self._now_utc = clock_fn
         self._monotonic = monotonic_fn
         self._pending_feedback: deque[tuple[datetime, float, float]] = deque(maxlen=64)
@@ -219,6 +224,8 @@ class ArbiterLoop:
                     forecast.upper_rps,
                 )
             )
+            if self._on_forecast is not None:
+                self._on_forecast(forecast)
         except Exception as exc:
             forecaster_error = f"forecaster unavailable ({type(exc).__name__}: {exc})"
             logger.warning("Entering degraded reactive-only mode: %s", forecaster_error)
@@ -241,6 +248,8 @@ class ArbiterLoop:
                 self.controller.revert_actuation(prev_actuation_s)
 
         self.decision_logger.record(decision, actuation=actuation)
+        if self._on_decision is not None:
+            self._on_decision(decision, actuation)
         return decision, actuation
 
 
@@ -268,6 +277,55 @@ def run_loop(
     return results
 
 
+def _query_prom_scalar(prom: Any, query: str) -> float:
+    res = prom.custom_query(query=query)
+    if not res:
+        return 0.0
+    raw = res[0].get("value")
+    if not isinstance(raw, (list, tuple)) or len(raw) < 2:
+        return 0.0
+    val = float(raw[1])
+    return val if math.isfinite(val) else 0.0
+
+
+def _ws_telemetry_worker(
+    *,
+    stop_event: threading.Event,
+    telemetry: PrometheusTelemetrySource,
+    actuator: KubernetesScaleActuator,
+    hub: Any,
+    build_frame_fn: Callable[..., dict[str, Any]],
+    step_s: int = SCRAPE_INTERVAL_S,
+) -> None:
+    """Poll Prometheus + K8s every `step_s` seconds and publish `TelemetryFrame`s."""
+    from services.collector.promql import TELEMETRY_QUERIES
+
+    while not stop_event.is_set():
+        t_start = time.monotonic()
+        try:
+            now_utc = datetime.now(timezone.utc)
+            state = actuator.read_replica_state()
+            frame = build_frame_fn(
+                ts_utc=now_utc,
+                rps=_query_prom_scalar(telemetry.prom, TELEMETRY_QUERIES["rps"]),
+                cpu_millicores=_query_prom_scalar(
+                    telemetry.prom, TELEMETRY_QUERIES["cpu_millicores_total"]
+                ),
+                p50=_query_prom_scalar(telemetry.prom, TELEMETRY_QUERIES["p50"]),
+                p90=_query_prom_scalar(telemetry.prom, TELEMETRY_QUERIES["p90"]),
+                p99=_query_prom_scalar(telemetry.prom, TELEMETRY_QUERIES["p99"]),
+                ready_replicas=state.ready_replicas,
+                desired_replicas=state.desired_replicas,
+                sla_violation_rate=0.0,
+            )
+            hub.publish_telemetry(frame)
+        except Exception as exc:
+            logger.debug("Live WS telemetry poll skipped: %s", exc)
+        remaining = step_s - (time.monotonic() - t_start)
+        if remaining > 0:
+            stop_event.wait(remaining)
+
+
 def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(
         level=logging.INFO,
@@ -282,6 +340,15 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--cpu-limit-cores", type=float, default=0.25)
     ap.add_argument("--pg-dsn", default=None)
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--profile", default="flash")
+    ap.add_argument("--warmup-seconds", type=int, default=30)
+    ap.add_argument(
+        "--ws-port",
+        type=int,
+        default=None,
+        help="Optional port to expose `/ws/stream`, `/api/snapshot`, and `/healthz`",
+    )
+    ap.add_argument("--ws-host", default="127.0.0.1")
     ap.add_argument(
         "--log-path",
         type=Path,
@@ -301,6 +368,53 @@ def main(argv: list[str] | None = None) -> int:
     actuator = KubernetesScaleActuator()
     dlogger = DecisionLogger(log_path, run_id=args.run_id, pg_dsn=args.pg_dsn)
 
+    ws_server: Any = None
+    ws_stop = threading.Event()
+    ws_poller: threading.Thread | None = None
+    on_forecast = None
+    on_decision = None
+
+    if args.ws_port is not None:
+        from cloudpulse_core.config import SLO_MS
+        from services.arbiter.ws import (
+            LiveWsServer,
+            RunMetaPayload,
+            StreamHub,
+            build_forecast_frame,
+            build_telemetry_frame,
+        )
+
+        meta = RunMetaPayload(
+            runId=args.run_id,
+            scaler="cloudpulse",
+            profile=args.profile,
+            warmupSeconds=args.warmup_seconds,
+            horizonS=limits.horizon_s,
+            capacityRps=limits.capacity_rps,
+            minPods=limits.min_pods,
+            maxPods=limits.max_pods,
+            sloMs=SLO_MS,
+            live=True,
+        )
+        hub = StreamHub(meta)
+        ws_server = LiveWsServer(hub, host=args.ws_host, port=args.ws_port)
+        ws_server.start()
+        on_forecast = lambda fc: hub.publish_forecast(build_forecast_frame(fc))
+        on_decision = lambda dec, _act: hub.publish_decision(dec)
+        ws_poller = threading.Thread(
+            target=_ws_telemetry_worker,
+            kwargs={
+                "stop_event": ws_stop,
+                "telemetry": telemetry,
+                "actuator": actuator,
+                "hub": hub,
+                "build_frame_fn": build_telemetry_frame,
+            },
+            name="cloudpulse-ws-telemetry",
+            daemon=True,
+        )
+        ws_poller.start()
+
     arb_loop = ArbiterLoop(
         limits=limits,
         telemetry=telemetry,
@@ -308,12 +422,19 @@ def main(argv: list[str] | None = None) -> int:
         actuator=actuator,
         decision_logger=dlogger,
         dry_run=args.dry_run,
+        on_forecast=on_forecast,
+        on_decision=on_decision,
     )
     try:
         run_loop(arb_loop, interval_s=args.interval, max_ticks=args.max_ticks)
     except KeyboardInterrupt:
         logger.info("Arbiter stopped cleanly by user.")
     finally:
+        ws_stop.set()
+        if ws_poller is not None:
+            ws_poller.join(timeout=3.0)
+        if ws_server is not None:
+            ws_server.stop()
         forecaster.close()
     return 0
 

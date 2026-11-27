@@ -61,6 +61,7 @@ Targets (also exposed in Makefile):
   collect     Run telemetry collector (Phase 3)
   train       Train quantile forecaster & CQR calibrator (Phase 4)
   serve       Start forecaster / arbiter services locally (Phases 4-5)
+  demo        Run scripted end-to-end flash demo (Phase 6, T6.3)
   bench       Run sequential benchmark suite (Phase 7)
   analyse     Compute metrics and tables from experiments/results/ (Phase 7)
   clean       Remove Python caches and temporary test artifacts
@@ -172,6 +173,15 @@ def cmd_serve(args: argparse.Namespace) -> int:
     )
 
 
+def cmd_demo(args: argparse.Namespace) -> int:
+    script = _require_script("scripts/demo.py", "Phase 6 (T6.3)")
+    if not script:
+        return 2
+    py = venv_python() if venv_python().exists() else Path(sys.executable)
+    extra = getattr(args, "extra", [])
+    return _run([str(py), str(script), *extra])
+
+
 def cmd_bench(args: argparse.Namespace) -> int:
     script = _require_script("experiments/run.py", "Phase 7 (T7.1)")
     if not script:
@@ -209,6 +219,7 @@ COMMANDS = {
     "collect": cmd_collect,
     "train": cmd_train,
     "serve": cmd_serve,
+    "demo": cmd_demo,
     "bench": cmd_bench,
     "analyse": cmd_analyse,
     "clean": cmd_clean,

@@ -132,6 +132,7 @@ export function DemandPlot({
   height?: number;
 }) {
   const max = Math.max(
+    10,
     ...rows.map((r) => Math.max(r.rps ?? 0, r.fUpper ?? 0, r.capacity ?? 0)),
   );
   const ticks = niceTicks(max * 1.08);
@@ -181,6 +182,7 @@ export function DemandPlot({
           strokeLinecap="round"
           dot={false}
           isAnimationActive={false}
+          connectNulls={false}
         />
         <Tooltip
           cursor={{ stroke: "var(--axis)", strokeWidth: 1 }}
@@ -268,6 +270,7 @@ export function ReplicaPlot({
           fillOpacity={0.1}
           dot={false}
           isAnimationActive={false}
+          connectNulls={false}
         />
         <Line
           dataKey="desired"
@@ -277,6 +280,7 @@ export function ReplicaPlot({
           strokeDasharray="2 2"
           dot={false}
           isAnimationActive={false}
+          connectNulls={false}
         />
         <Tooltip
           cursor={{ stroke: "var(--axis)", strokeWidth: 1 }}
@@ -347,6 +351,7 @@ export function LatencyPlot({
           strokeLinecap="round"
           dot={false}
           isAnimationActive={false}
+          connectNulls={false}
         />
         <Tooltip
           cursor={{ stroke: "var(--axis)", strokeWidth: 1 }}
@@ -377,21 +382,32 @@ export function LatencyPlot({
 export function Legend({
   items,
 }: {
-  items: { label: string; color: string; dashed?: boolean }[];
+  items: { label: string; color: string; dashed?: boolean; band?: boolean }[];
 }) {
   return (
     <ul className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
       {items.map((i) => (
         <li key={i.label} className="flex items-center gap-1.5">
-          <span
-            aria-hidden
-            className="h-0.5 w-3.5 shrink-0 rounded-full"
-            style={{
-              background: i.dashed
-                ? `repeating-linear-gradient(90deg, ${i.color} 0 3px, transparent 3px 6px)`
-                : i.color,
-            }}
-          />
+          {i.band ? (
+            <span
+              aria-hidden
+              className="h-2.5 w-3.5 shrink-0 rounded-[1px] border"
+              style={{
+                borderColor: `color-mix(in srgb, ${i.color} 45%, transparent)`,
+                background: `color-mix(in srgb, ${i.color} 18%, transparent)`,
+              }}
+            />
+          ) : (
+            <span
+              aria-hidden
+              className="h-0.5 w-3.5 shrink-0 rounded-full"
+              style={{
+                background: i.dashed
+                  ? `repeating-linear-gradient(90deg, ${i.color} 0 3px, transparent 3px 6px)`
+                  : i.color,
+              }}
+            />
+          )}
           {/* text never wears the data colour — the mark beside it carries identity */}
           <span className="text-[11px] text-ink-secondary">{i.label}</span>
         </li>

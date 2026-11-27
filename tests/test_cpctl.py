@@ -14,6 +14,7 @@ REQUIRED_TARGETS = (
     "collect",
     "train",
     "serve",
+    "demo",
     "bench",
     "analyse",
     "clean",

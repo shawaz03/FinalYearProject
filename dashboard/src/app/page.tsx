@@ -3,9 +3,11 @@
 import * as React from "react";
 import gsap from "gsap";
 import {
+  DollarSign,
   Moon,
   Pause,
   Play,
+  Radio,
   RotateCcw,
   Sun,
   Table2,
@@ -24,12 +26,34 @@ import {
 } from "@/components/charts/timeline";
 import { mergeSeries } from "@/lib/series";
 import { RUN, podSeconds, simulateRun } from "@/lib/telemetry";
+import { DEFAULT_WS_URL, useCloudPulseStream } from "@/lib/use-cloudpulse-stream";
 import { clockHHMMSS, cn, compact } from "@/lib/utils";
+
+/* ----------------------------- theme store -------------------------------- */
+
+function subscribeTheme(onChange: () => void): () => void {
+  window.addEventListener("cp-theme-change", onChange);
+  window.addEventListener("storage", onChange);
+  return () => {
+    window.removeEventListener("cp-theme-change", onChange);
+    window.removeEventListener("storage", onChange);
+  };
+}
+
+function getThemeSnapshot(): "light" | "dark" {
+  return document.documentElement.getAttribute("data-theme") === "dark"
+    ? "dark"
+    : "light";
+}
+
+function getServerTheme(): "light" | "dark" {
+  return "light";
+}
 
 /* ----------------------------- replay playhead ---------------------------- */
 
 function useReplay(total: number) {
-  const [head, setHead] = React.useState(total);
+  const [head, setHead] = React.useState<number | null>(null);
   const [playing, setPlaying] = React.useState(false);
   const proxy = React.useRef({ v: total });
   const tween = React.useRef<gsap.core.Tween | null>(null);
@@ -39,6 +63,11 @@ function useReplay(total: number) {
     tween.current = null;
     setPlaying(false);
   }, []);
+
+  const reset = React.useCallback(() => {
+    stop();
+    setHead(null);
+  }, [stop]);
 
   const play = React.useCallback(
     (from = 0) => {
@@ -51,14 +80,23 @@ function useReplay(total: number) {
         duration: Math.max(6, total * 0.055),
         ease: "none",
         onUpdate: () => setHead(Math.round(proxy.current.v)),
-        onComplete: () => setPlaying(false),
+        onComplete: () => {
+          setPlaying(false);
+          setHead(null);
+        },
       });
     },
     [total],
   );
 
   React.useEffect(() => () => void tween.current?.kill(), []);
-  return { head, playing, play, stop, setHead };
+  return {
+    head: head === null ? total : Math.min(head, total),
+    playing,
+    play,
+    stop,
+    reset,
+  };
 }
 
 /** Rolls a figure to its new value. Only used on the hero — a dashboard where
@@ -78,26 +116,35 @@ function useRoll(value: number) {
   return shown;
 }
 
+const ASSUMED_USD_PER_POD_HOUR = 0.0425;
+
 /* --------------------------------- page ----------------------------------- */
 
 export default function Page() {
-  const run = React.useMemo(() => simulateRun(), []);
-  const allRows = React.useMemo(
-    () => mergeSeries(run.telemetry, run.forecasts, RUN.capacityRps),
-    [run],
+  const simRun = React.useMemo(() => simulateRun(), []);
+  const stream = useCloudPulseStream(process.env.NEXT_PUBLIC_WS_URL || undefined);
+
+  const usingStream =
+    stream.status === "connected" &&
+    stream.meta !== null &&
+    stream.telemetry.length > 0;
+
+  const activeMeta = usingStream && stream.meta ? stream.meta : RUN;
+  const activeTelemetry = usingStream ? stream.telemetry : simRun.telemetry;
+  const activeForecasts = usingStream ? stream.forecasts : simRun.forecasts;
+  const activeDecisions = usingStream ? stream.decisions : simRun.decisions;
+
+  const { head, playing, play, stop, reset } = useReplay(
+    activeTelemetry.length,
   );
-
-  const { head, playing, play, stop, setHead } = useReplay(allRows.length);
   const [showTable, setShowTable] = React.useState(false);
-  const [theme, setTheme] = React.useState<"light" | "dark">("light");
+  const [showDollars, setShowDollars] = React.useState(false);
+  const theme = React.useSyncExternalStore(
+    subscribeTheme,
+    getThemeSnapshot,
+    getServerTheme,
+  );
   const stage = React.useRef<HTMLDivElement>(null);
-
-  React.useEffect(() => {
-    const stored = localStorage.getItem("cp-theme") as "light" | "dark" | null;
-    const initial = stored ?? "light";
-    setTheme(initial);
-    document.documentElement.setAttribute("data-theme", initial);
-  }, []);
 
   /* Entrance: plates settle in sequence, like a rack powering up. Runs once,
      is short, and is skipped entirely under prefers-reduced-motion. */
@@ -117,33 +164,100 @@ export default function Page() {
 
   const toggleTheme = () => {
     const next = theme === "dark" ? "light" : "dark";
-    setTheme(next);
     document.documentElement.setAttribute("data-theme", next);
     localStorage.setItem("cp-theme", next);
+    window.dispatchEvent(new Event("cp-theme-change"));
   };
 
-  const rows = allRows.slice(0, Math.max(2, head));
-  const domain: [number, number] = [allRows[0].t, allRows[allRows.length - 1].t];
-  const latest = rows[rows.length - 1];
-  const decisions = run.decisions.filter((d) => d.t <= latest.t);
+  const visibleCount = usingStream
+    ? activeTelemetry.length
+    : Math.max(2, head);
+  const visibleTelemetry = activeTelemetry.slice(0, visibleCount);
+  const latestObs = visibleTelemetry[visibleTelemetry.length - 1];
 
-  const cost = podSeconds(run.telemetry.slice(0, rows.length));
-  const violation = run.telemetry[rows.length - 1]?.slaViolationRate ?? 0;
+  // Show forecasts produced at or before `latestObs.t` so their `targetT = t + H`
+  // leads visibly ahead of the measured demand curve.
+  const visibleForecasts = React.useMemo(
+    () =>
+      latestObs
+        ? activeForecasts.filter((f) => f.t <= latestObs.t)
+        : activeForecasts,
+    [activeForecasts, latestObs],
+  );
+
+  const rows = React.useMemo(
+    () =>
+      mergeSeries(visibleTelemetry, visibleForecasts, activeMeta.capacityRps),
+    [visibleTelemetry, visibleForecasts, activeMeta.capacityRps],
+  );
+
+  const fullRows = React.useMemo(
+    () =>
+      mergeSeries(activeTelemetry, activeForecasts, activeMeta.capacityRps),
+    [activeTelemetry, activeForecasts, activeMeta.capacityRps],
+  );
+
+  const domain: [number, number] =
+    fullRows.length > 0
+      ? [fullRows[0].t, fullRows[fullRows.length - 1].t]
+      : [0, 1];
+  const decisions = latestObs
+    ? activeDecisions.filter((d) => d.t <= latestObs.t)
+    : [];
+
+  const cost = podSeconds(visibleTelemetry);
+  const elapsedSeconds =
+    visibleTelemetry.length >= 2
+      ? Math.max(
+          5,
+          (visibleTelemetry[visibleTelemetry.length - 1].t -
+            visibleTelemetry[0].t) /
+            1000,
+        )
+      : 5;
+  const violation = latestObs?.slaViolationRate ?? 0;
   const rolled = useRoll(violation * 100);
-  const breaching = latest.p99 != null && latest.p99 > RUN.sloMs;
+  const breaching = latestObs ? latestObs.p99 > activeMeta.sloMs : false;
+  const capacityNow = latestObs
+    ? latestObs.readyReplicas * activeMeta.capacityRps
+    : 0;
   const headroom =
-    latest.capacity && latest.rps ? latest.capacity / latest.rps : 0;
+    latestObs && latestObs.rps > 0 ? capacityNow / latestObs.rps : 0;
   const over = violation > 0.02;
 
   const sparkOf = (pick: (i: number) => number) => {
-    const n = Math.min(14, rows.length);
-    return Array.from({ length: n }, (_, k) => pick(rows.length - n + k));
+    const n = Math.min(14, visibleTelemetry.length);
+    return Array.from({ length: n }, (_, k) =>
+      pick(visibleTelemetry.length - n + k),
+    );
   };
+
+  const sourceBadge = usingStream
+    ? activeMeta.live
+      ? {
+          tone: "good" as const,
+          label: "live",
+          title: `Streaming live telemetry from ${stream.wsUrl}`,
+        }
+      : {
+          tone: "forecast" as const,
+          label: "ws replay",
+          title: `Connected to WebSocket replay stream (${stream.wsUrl})`,
+        }
+    : {
+        tone: "warning" as const,
+        label: "simulated",
+        title:
+          stream.errorMessage || "No live arbiter connected — seeded simulation",
+      };
 
   return (
     <div ref={stage} className="relative min-h-screen">
       {/* material layers */}
-      <div className="plane-grid pointer-events-none fixed inset-0 z-0" aria-hidden />
+      <div
+        className="plane-grid pointer-events-none fixed inset-0 z-0"
+        aria-hidden
+      />
       <div className="grain pointer-events-none fixed inset-0 z-0" aria-hidden />
 
       {/* ------------------------------ masthead ----------------------------- */}
@@ -165,13 +279,40 @@ export default function Page() {
               </p>
             </div>
 
-            <div className="flex items-center gap-2">
-              <Badge tone="warning" title="No arbiter is connected yet">
-                <TriangleAlert size={10} aria-hidden />
-                simulated
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge tone={sourceBadge.tone} title={sourceBadge.title}>
+                {usingStream ? (
+                  <Radio size={10} aria-hidden />
+                ) : (
+                  <TriangleAlert size={10} aria-hidden />
+                )}
+                {sourceBadge.label}
               </Badge>
               <button
-                onClick={() => setShowTable((s) => !s)}
+                onClick={() =>
+                  stream.status === "connected" ||
+                  stream.status === "connecting"
+                    ? stream.disconnect()
+                    : stream.connect(DEFAULT_WS_URL)
+                }
+                aria-pressed={stream.status === "connected"}
+                title={`WebSocket endpoint: ${DEFAULT_WS_URL}`}
+                className={cn(
+                  "flex items-center gap-1.5 rounded-[var(--radius-chip)] border px-2 py-1 text-[10px] uppercase tracking-wider transition-colors",
+                  stream.status === "connected"
+                    ? "border-edge-strong bg-surface-raised text-ink"
+                    : "border-edge text-ink-secondary hover:border-edge-strong hover:text-ink",
+                )}
+              >
+                <Radio size={11} aria-hidden />
+                {stream.status === "connected"
+                  ? "disconnect ws"
+                  : stream.status === "connecting"
+                    ? "connecting..."
+                    : "connect ws"}
+              </button>
+              <button
+                onClick={() => (showTable ? setShowTable(false) : setShowTable(true))}
                 aria-pressed={showTable}
                 className={cn(
                   "flex items-center gap-1.5 rounded-[var(--radius-chip)] border px-2 py-1 text-[10px] uppercase tracking-wider transition-colors",
@@ -199,15 +340,24 @@ export default function Page() {
                 className="live-dot h-1.5 w-1.5 rounded-full bg-demand"
                 aria-hidden
               />
-              <span className="eyebrow">replaying</span>
+              <span className="eyebrow">
+                {usingStream
+                  ? activeMeta.live
+                    ? "streaming"
+                    : "ws replay"
+                  : "replaying"}
+              </span>
             </span>
-            <Readout k="run" v={RUN.runId} />
-            <Readout k="scaler" v={RUN.scaler} />
-            <Readout k="profile" v={RUN.profile} />
-            <Readout k="horizon" v={`${RUN.horizonS}s`} />
-            <Readout k="warmup" v={`${RUN.warmupSeconds}s`} />
-            <Readout k="C" v={`${RUN.capacityRps} rps/pod`} />
-            <Readout k="clock" v={clockHHMMSS(latest.t)} />
+            <Readout k="run" v={activeMeta.runId} />
+            <Readout k="scaler" v={activeMeta.scaler} />
+            <Readout k="profile" v={activeMeta.profile} />
+            <Readout k="horizon" v={`${activeMeta.horizonS}s`} />
+            <Readout k="warmup" v={`${activeMeta.warmupSeconds}s`} />
+            <Readout k="C" v={`${activeMeta.capacityRps} rps/pod`} />
+            <Readout
+              k="clock"
+              v={latestObs ? clockHHMMSS(latestObs.t) : "—"}
+            />
           </div>
         </div>
       </header>
@@ -233,7 +383,7 @@ export default function Page() {
               <div>
                 <div className="eyebrow mb-1">Headline metric</div>
                 <div className="text-[12px] text-ink-secondary">
-                  SLA violations — requests slower than {RUN.sloMs} ms
+                  SLA violations — requests slower than {activeMeta.sloMs} ms
                 </div>
               </div>
               <span className="flex shrink-0 items-center gap-1.5">
@@ -280,22 +430,22 @@ export default function Page() {
           <StatTile
             data-stagger
             label="Demand"
-            value={latest.rps?.toFixed(0) ?? "—"}
+            value={latestObs ? latestObs.rps.toFixed(0) : "—"}
             unit="req/s"
             tone="var(--color-demand)"
-            spark={sparkOf((i) => rows[i].rps ?? 0)}
-            hint={`capacity ${latest.capacity?.toFixed(0)} req/s`}
+            spark={sparkOf((i) => visibleTelemetry[i]?.rps ?? 0)}
+            hint={`capacity ${capacityNow.toFixed(0)} req/s`}
           />
           <StatTile
             data-stagger
             label="Replicas ready"
-            value={String(latest.replicas ?? "—")}
-            unit={`/ ${RUN.maxPods}`}
+            value={latestObs ? String(latestObs.readyReplicas) : "—"}
+            unit={`/ ${activeMeta.maxPods}`}
             tone="var(--color-replicas)"
-            spark={sparkOf((i) => rows[i].replicas ?? 0)}
-            hint={`requested ${latest.desired} · C = ${RUN.capacityRps}`}
+            spark={sparkOf((i) => visibleTelemetry[i]?.readyReplicas ?? 0)}
+            hint={`requested ${latestObs?.desiredReplicas ?? "—"} · C = ${activeMeta.capacityRps}`}
             state={
-              latest.desired !== latest.replicas
+              latestObs && latestObs.desiredReplicas !== latestObs.readyReplicas
                 ? { text: "warming", color: "var(--color-warning)" }
                 : undefined
             }
@@ -303,11 +453,11 @@ export default function Page() {
           <StatTile
             data-stagger
             label="p99 latency"
-            value={latest.p99?.toFixed(0) ?? "—"}
+            value={latestObs ? latestObs.p99.toFixed(0) : "—"}
             unit="ms"
             tone={breaching ? "var(--color-critical)" : "var(--ink)"}
-            spark={sparkOf((i) => rows[i].p99 ?? 0)}
-            hint={`p50 ${run.telemetry[rows.length - 1]?.p50.toFixed(0)} ms · client-side`}
+            spark={sparkOf((i) => visibleTelemetry[i]?.p99 ?? 0)}
+            hint={`p50 ${latestObs ? latestObs.p50.toFixed(0) : "—"} ms · client-side`}
             state={
               breaching
                 ? { text: "over slo", color: "var(--color-critical)" }
@@ -319,35 +469,38 @@ export default function Page() {
         {/* ---------------------------- timeline ---------------------------- */}
         <Panel data-stagger className="mb-6">
           <PanelHeader index="01" title="Timeline" unit="shared time axis">
-            <div className="flex items-center gap-1.5">
-              <button
-                onClick={() => (playing ? stop() : play(0))}
-                className="flex items-center gap-1.5 rounded-[var(--radius-chip)] border border-edge px-2 py-1 text-[10px] uppercase tracking-wider text-ink-secondary transition-colors hover:border-edge-strong hover:text-ink"
-              >
-                {playing ? <Pause size={11} /> : <Play size={11} />}
-                {playing ? "pause" : "replay"}
-              </button>
-              <button
-                onClick={() => {
-                  stop();
-                  setHead(allRows.length);
-                }}
-                aria-label="Show the whole run"
-                className="rounded-[var(--radius-chip)] border border-edge p-1.5 text-ink-secondary transition-colors hover:border-edge-strong hover:text-ink"
-              >
-                <RotateCcw size={11} />
-              </button>
-            </div>
+            {!usingStream ? (
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => (playing ? stop() : play(0))}
+                  className="flex items-center gap-1.5 rounded-[var(--radius-chip)] border border-edge px-2 py-1 text-[10px] uppercase tracking-wider text-ink-secondary transition-colors hover:border-edge-strong hover:text-ink"
+                >
+                  {playing ? <Pause size={11} /> : <Play size={11} />}
+                  {playing ? "pause" : "replay"}
+                </button>
+                <button
+                  onClick={reset}
+                  aria-label="Show the whole run"
+                  className="rounded-[var(--radius-chip)] border border-edge p-1.5 text-ink-secondary transition-colors hover:border-edge-strong hover:text-ink"
+                >
+                  <RotateCcw size={11} />
+                </button>
+              </div>
+            ) : null}
           </PanelHeader>
 
           {[
             {
               title: "Demand",
-              sub: `measured vs forecast at t+${RUN.horizonS}s`,
+              sub: `measured vs forecast at t+${activeMeta.horizonS}s`,
               legend: [
                 { label: "Measured", color: "var(--color-demand)" },
                 { label: "Forecast", color: "var(--color-forecast)" },
-                { label: "90% interval", color: "var(--color-forecast)" },
+                {
+                  label: "90% interval",
+                  color: "var(--color-forecast)",
+                  band: true,
+                },
                 {
                   label: "Capacity",
                   color: "var(--color-replicas)",
@@ -371,7 +524,7 @@ export default function Page() {
                 <ReplicaPlot
                   rows={rows}
                   domain={domain}
-                  maxPods={RUN.maxPods}
+                  maxPods={activeMeta.maxPods}
                 />
               ),
             },
@@ -380,7 +533,11 @@ export default function Page() {
               sub: "p99, client-side, ms",
               legend: [],
               plot: (
-                <LatencyPlot rows={rows} domain={domain} sloMs={RUN.sloMs} />
+                <LatencyPlot
+                  rows={rows}
+                  domain={domain}
+                  sloMs={activeMeta.sloMs}
+                />
               ),
             },
           ].map((band, i) => (
@@ -408,7 +565,21 @@ export default function Page() {
           </Panel>
 
           <Panel data-stagger>
-            <PanelHeader index="03" title="Cost" unit="pod-seconds" />
+            <PanelHeader index="03" title="Cost" unit="pod-seconds">
+              <button
+                onClick={() => setShowDollars((s) => !s)}
+                aria-pressed={showDollars}
+                className={cn(
+                  "flex items-center gap-1 rounded-[var(--radius-chip)] border px-2 py-0.5 text-[10px] uppercase tracking-wider transition-colors",
+                  showDollars
+                    ? "border-edge-strong bg-surface-raised text-ink"
+                    : "border-edge text-ink-secondary hover:border-edge-strong hover:text-ink",
+                )}
+              >
+                <DollarSign size={10} aria-hidden />
+                {showDollars ? "hide $" : "show $"}
+              </button>
+            </PanelHeader>
             <div className="flex flex-col gap-4 px-4 py-4">
               <div>
                 <div className="flex items-baseline gap-1.5">
@@ -421,30 +592,40 @@ export default function Page() {
                 </div>
                 <p className="mt-2 text-[11px] leading-relaxed text-ink-secondary">
                   The integral of replicas over time. A local cluster has no
-                  dollar cost, so a currency figure here would be fiction.
+                  dollar cost, so pod-seconds is the primary metric (D14).
                 </p>
               </div>
 
-              <div className="rounded-[var(--radius-chip)] border border-edge bg-surface-sunken px-3 py-2.5">
-                <div className="mb-1 flex items-center gap-1.5">
-                  <TriangleAlert size={11} className="text-warning" aria-hidden />
-                  <span className="eyebrow">if priced</span>
+              {showDollars ? (
+                <div className="rounded-[var(--radius-chip)] border border-edge bg-surface-sunken px-3 py-2.5">
+                  <div className="mb-1 flex items-center gap-1.5">
+                    <TriangleAlert
+                      size={11}
+                      className="text-warning"
+                      aria-hidden
+                    />
+                    <span className="eyebrow">derived estimate</span>
+                  </div>
+                  <p className="font-mono text-[12px] tabular-nums">
+                    ≈ ${((cost / 3600) * ASSUMED_USD_PER_POD_HOUR).toFixed(3)}
+                  </p>
+                  <p className="mt-1 text-[10px] leading-relaxed text-ink-tertiary">
+                    Assumes ${ASSUMED_USD_PER_POD_HOUR.toFixed(4)} / pod-hour.
+                    Printed on screen so the price assumption stays explicit.
+                  </p>
                 </div>
-                <p className="font-mono text-[12px] tabular-nums">
-                  ≈ ${((cost / 3600) * 0.0425).toFixed(3)}
-                </p>
-                <p className="mt-1 text-[10px] leading-relaxed text-ink-tertiary">
-                  Assumes $0.0425 / pod-hour. The assumption is printed because
-                  an unlabelled cost figure is not a measurement.
-                </p>
-              </div>
+              ) : null}
 
               <dl className="flex flex-col gap-1.5 border-t border-edge pt-3">
                 {[
-                  ["mean replicas", (cost / (rows.length * 5)).toFixed(2)],
+                  ["mean replicas", (cost / elapsedSeconds).toFixed(2)],
                   [
                     "peak replicas",
-                    String(Math.max(...rows.map((r) => r.replicas ?? 0))),
+                    String(
+                      visibleTelemetry.length
+                        ? Math.max(...visibleTelemetry.map((r) => r.readyReplicas))
+                        : 0,
+                    ),
                   ],
                   [
                     "actuations",
@@ -500,19 +681,27 @@ export default function Page() {
                       <td className="px-3 py-1 text-ink-tertiary">
                         {clockHHMMSS(r.t)}
                       </td>
-                      <td className="px-3 py-1">{r.rps?.toFixed(1)}</td>
-                      <td className="px-3 py-1">{r.fPoint?.toFixed(1) ?? "—"}</td>
-                      <td className="px-3 py-1 text-ink-secondary">
-                        {r.fLower?.toFixed(1) ?? "—"}
+                      <td className="px-3 py-1">
+                        {r.rps != null ? r.rps.toFixed(1) : "—"}
+                      </td>
+                      <td className="px-3 py-1">
+                        {r.fPoint != null ? r.fPoint.toFixed(1) : "—"}
                       </td>
                       <td className="px-3 py-1 text-ink-secondary">
-                        {r.fUpper?.toFixed(1) ?? "—"}
+                        {r.fLower != null ? r.fLower.toFixed(1) : "—"}
                       </td>
                       <td className="px-3 py-1 text-ink-secondary">
-                        {r.capacity?.toFixed(0)}
+                        {r.fUpper != null ? r.fUpper.toFixed(1) : "—"}
                       </td>
-                      <td className="px-3 py-1">{r.replicas}</td>
-                      <td className="px-3 py-1">{r.p99?.toFixed(1)}</td>
+                      <td className="px-3 py-1 text-ink-secondary">
+                        {r.capacity != null ? r.capacity.toFixed(0) : "—"}
+                      </td>
+                      <td className="px-3 py-1">
+                        {r.replicas != null ? r.replicas : "—"}
+                      </td>
+                      <td className="px-3 py-1">
+                        {r.p99 != null ? r.p99.toFixed(1) : "—"}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -523,7 +712,14 @@ export default function Page() {
 
         <footer className="mt-7 flex flex-wrap items-center gap-x-5 gap-y-1 border-t border-edge pt-4">
           <span className="eyebrow">Mohan Babu University</span>
-          <Readout k="C" v={`${RUN.capacityRps} req/s per pod — provisional`} />
+          <Readout
+            k="C"
+            v={
+              usingStream
+                ? `${activeMeta.capacityRps} req/s per pod`
+                : `${activeMeta.capacityRps} req/s per pod — provisional`
+            }
+          />
           <Readout k="latency" v="client-side" />
         </footer>
       </main>

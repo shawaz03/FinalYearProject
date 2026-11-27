@@ -609,3 +609,29 @@ synthetic numbers were committed to `analysis/`.
 |---|---|---|
 | Cluster sync | 15.6 GB laptop | Pull, apply `deploy/k8s/`, verify `MAX_PODS`, run `T2.1`–`T2.3` + `T3.2.1` (`>= 6 h` collection) |
 | Phase 6.1 | This laptop (7.9 GB) | Audit `dashboard/` UI (`npm run dev`, `npm run build`, visual inspection) and wire WebSocket `T6.1`–`T6.2` |
+
+### Phase 6 Integration, WebSocket Streaming, Containerization & Dashboard (`T6.1`–`T6.3`)
+
+**Artifacts added / updated:**
+- **Step 6.1 (`dashboard/` audit & lint):** Installed pinned packages cleanly with `npm ci` (`432` packages, `0` vulnerabilities), resolved ESLint `react-hooks/set-state-in-effect` and `prefer-const` issues in `dashboard/src/app/page.tsx` and `dashboard/src/lib/series.ts`, and audited rendered Sand/Espresso themes, Table View, and GSAP replay on `http://127.0.0.1:3000` with zero console errors or horizontal overflow.
+- **Step 6.2 (`services/arbiter/ws.py`):** Implemented FastAPI WebSocket broadcaster (`/ws/stream`, `/api/snapshot`, `/healthz`) and deterministic `--replay` generator (`live=False`) matching the TypeScript shapes in `dashboard/src/lib/telemetry.ts`, verified in `tests/test_ws.py`.
+- **Step 6.3 (`dashboard/` live WS + leading band + cost toggle):** Added `dashboard/src/lib/use-cloudpulse-stream.ts` (`connect ws` / `disconnect ws`, explicit `simulated` / `ws replay` / `live` badge), extended `mergeSeries()` across the `t + H` prediction horizon with `connectNulls={false}`, added the `90% interval` band swatch in `timeline.tsx`, and hid the `$0.0425 / pod-hour` estimate behind a `show $` / `hide $` toggle in `03 Cost`. Verified live against `ws://127.0.0.1:8002/ws/stream` in headless Chromium (`0` console/network errors, `0` horizontal overflow at `762x621`).
+- **Step 6.4 (`T6.3` Dockerfiles, `scripts/demo.py`, `make demo`, live WS bridge):**
+  - Added non-root multi-stage Dockerfiles + pinned `requirements.txt` for `services/collector/` and `services/arbiter/` matching root `requirements.txt`.
+  - Added thread-safe `LiveWsServer` loop dispatch in `services/arbiter/ws.py` and `--ws-port` / 5 s Prometheus telemetry poller integration in `services/arbiter/loop.py`.
+  - Added `scripts/demo.py` (`--mode cluster` with preflight checks, HPA conflict guard, baseline `MIN_PODS` reset, port-forwards, forecaster, arbiter+WS, and `k6` `flash` driver; plus `--mode replay` for offline verification), wired into `Makefile` (`demo:`), `scripts/cpctl.py demo`, and `tests/test_demo.py`.
+  - Updated `dashboard/README.md` to reflect live WebSocket + visual verification status.
+
+**Catches fixed during implementation:**
+- `asyncio.Queue(maxsize=256)` (`maxlen` typo caught immediately by `test_ws.py`).
+- Cross-thread async broadcast safety (`StreamHub.attach_loop()` using `loop.call_soon_threadsafe(...)` and `uvicorn.Server.install_signal_handlers = lambda: None` when hosted inside `LiveWsServer` daemon thread).
+- `deploy/k8s/22-prometheus-deployment.yaml` places Prometheus in namespace `monitoring`, whereas `target-app` runs in `cloudpulse` (`scripts/demo.py` port-forwards `-n monitoring svc/prometheus`).
+
+**Checks run after final edits:**
+- `scripts/cpctl.py test`: **62 passed** across Phases 0–6 (including `tests/test_ws.py`, `tests/test_demo.py`, `tests/test_cpctl.py`).
+- `scripts/cpctl.py demo --mode replay --replay-tick-s 0.02 --rehearsals 2`: exited `0`, passing two consecutive offline rehearsals cleanly (`live=False`).
+- `Push-Location dashboard; npm run lint; npm run build`: exited `0` (Next.js 16.4.6).
+
+**Pending on the 15.6 GB cluster laptop to close Exit Gate 6:**
+1. Finish Phase 2 (`T2.1`–`T2.3`), Phase 3 (`>= 6 h` collection), and Phase 4 (`ml/train.py` fitting `ml/models/forecaster_bundle.joblib`).
+2. Run `make demo` (`--mode cluster`) twice consecutively on a clean k3d cluster (and optionally `make demo -- --build-images` to build/import all four images) and verify `wscat` + `dashboard/` live panels match `arbiter_decisions` in PostgreSQL.

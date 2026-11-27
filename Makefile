@@ -2,7 +2,7 @@
 
 PYTHON := $(if $(wildcard .venv/Scripts/python.exe),.venv/Scripts/python.exe,$(if $(wildcard .venv/bin/python),.venv/bin/python,python))
 
-.PHONY: help setup test cluster-up deploy collect train serve bench analyse clean
+.PHONY: help setup test cluster-up deploy collect train serve demo bench analyse clean
 
 help:
 	@$(PYTHON) scripts/cpctl.py help
@@ -27,6 +27,9 @@ train:
 
 serve:
 	@$(PYTHON) scripts/cpctl.py serve
+
+demo:
+	@$(PYTHON) scripts/cpctl.py demo
 
 bench:
 	@$(PYTHON) scripts/cpctl.py bench
