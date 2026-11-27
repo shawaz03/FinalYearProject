@@ -6,6 +6,7 @@ import {
   CartesianGrid,
   ComposedChart,
   Line,
+  ReferenceArea,
   ReferenceLine,
   ResponsiveContainer,
   Tooltip,
@@ -16,23 +17,8 @@ import type { Row } from "@/lib/series";
 import { niceTicks } from "@/lib/series";
 import { clockHHMM, clockHHMMSS } from "@/lib/utils";
 
-/**
- * Three aligned plots sharing one time axis.
- *
- * Demand (req/s), replicas (count) and latency (ms) are three different
- * scales. Putting any two of them on one plot would need a second y-axis,
- * which invents a correlation that is not in the data — the single most
- * common and most misleading chart mistake. Stacked small multiples on a
- * shared x domain give the same visual comparison honestly.
- *
- * `syncId` ties the crosshair together, so hovering anywhere reads all three
- * plots at the same instant.
- */
-
 const SYNC = "cloudpulse-timeline";
 const AXIS_FONT = 10;
-
-/* -------------------------------------------------------------------------- */
 
 interface TipRow {
   label: string;
@@ -56,13 +42,13 @@ function Tip({
   if (!active || !p?.length) return null;
   const row = p[0].payload;
   return (
-    <div className="pointer-events-none rounded-[var(--radius-chip)] border border-edge-strong bg-surface px-2.5 py-2 shadow-sm">
-      <div className="mb-1.5 font-mono text-[10px] tabular-nums text-ink-tertiary">
-        {clockHHMMSS(label ?? row.t)}
+    <div className="pointer-events-none rounded-[8px] border border-monolith-border bg-monolith px-3.5 py-2.5 text-monolith-ink shadow-xl">
+      <div className="mb-1.5 font-mono text-[10px] uppercase tracking-wider text-monolith-muted tnum">
+        {clockHHMMSS(label ?? row.t)} UTC
       </div>
       <div className="flex flex-col gap-1">
         {rows(row).map((r) => (
-          <div key={r.label} className="flex items-center gap-2 text-[11px]">
+          <div key={r.label} className="flex items-center gap-3 text-[11px]">
             {r.swatch ? (
               <span
                 aria-hidden
@@ -76,8 +62,8 @@ function Tip({
             ) : (
               <span className="w-3" />
             )}
-            <span className="text-ink-secondary">{r.label}</span>
-            <span className="ml-auto font-mono tabular-nums text-ink">
+            <span className="text-monolith-muted">{r.label}</span>
+            <span className="ml-auto font-mono font-medium tabular-nums text-monolith-ink">
               {r.value}
             </span>
           </div>
@@ -98,7 +84,7 @@ function axisProps(domain: [number, number]) {
     strokeWidth: 1,
     tick: { fill: "var(--ink-tertiary)", fontSize: AXIS_FONT },
     tickLine: false,
-    minTickGap: 44,
+    minTickGap: 48,
   };
 }
 
@@ -108,16 +94,11 @@ const yAxisBase = {
   tick: { fill: "var(--ink-tertiary)", fontSize: AXIS_FONT },
   tickLine: false,
   axisLine: false,
-  width: 38,
+  width: 40,
 };
 
 const grid = (
-  <CartesianGrid
-    vertical={false}
-    stroke="var(--grid)"
-    strokeWidth={1}
-    /* solid hairlines — dashed grid reads as "threshold" when it is just a grid */
-  />
+  <CartesianGrid vertical={false} stroke="var(--grid)" strokeWidth={1} />
 );
 
 /* ---------------------------------- demand -------------------------------- */
@@ -125,48 +106,96 @@ const grid = (
 export function DemandPlot({
   rows,
   domain,
-  height = 210,
+  nowT,
+  horizonS = 45,
+  height = 240,
 }: {
   rows: Row[];
   domain: [number, number];
+  nowT?: number;
+  horizonS?: number;
   height?: number;
 }) {
+  const fadeId = React.useId();
   const max = Math.max(
     10,
     ...rows.map((r) => Math.max(r.rps ?? 0, r.fUpper ?? 0, r.capacity ?? 0)),
   );
-  const ticks = niceTicks(max * 1.08);
+  const ticks = niceTicks(max * 1.1);
+  const showLookahead = nowT != null && domain[1] > nowT;
 
   return (
     <ResponsiveContainer width="100%" height={height}>
       <ComposedChart
         data={rows}
         syncId={SYNC}
-        margin={{ top: 8, right: 56, bottom: 4, left: 0 }}
+        margin={{ top: 10, right: 16, bottom: 4, left: 0 }}
       >
+        <defs>
+          <linearGradient id={fadeId} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="var(--color-demand)" stopOpacity={0.12} />
+            <stop offset="100%" stopColor="var(--color-demand)" stopOpacity={0.0} />
+          </linearGradient>
+        </defs>
         {grid}
         <XAxis {...axisProps(domain)} />
-        <YAxis {...yAxisBase} domain={[0, ticks[ticks.length - 1]]} ticks={ticks} />
+        <YAxis
+          {...yAxisBase}
+          domain={[0, ticks[ticks.length - 1]]}
+          ticks={ticks}
+        />
 
-        {/* conformal interval: a 10% wash, never a saturated block */}
+        {showLookahead ? (
+          <ReferenceArea
+            x1={nowT}
+            x2={domain[1]}
+            fill="var(--color-forecast)"
+            fillOpacity={0.06}
+            ifOverflow="extendDomain"
+          />
+        ) : null}
+
+        {nowT != null ? (
+          <ReferenceLine
+            x={nowT}
+            stroke="var(--ink)"
+            strokeWidth={1.2}
+            strokeDasharray="4 4"
+            label={{
+              value: `NOW -> +${horizonS}S`,
+              position: "insideTopRight",
+              fill: "var(--color-forecast)",
+              fontSize: 10,
+            }}
+          />
+        ) : null}
+
+        {/* Conformal 90% prediction cone */}
         <Area
+          type="monotone"
           dataKey="fRange"
           stroke="none"
           fill="var(--color-forecast)"
-          fillOpacity={0.1}
+          fillOpacity={0.14}
           isAnimationActive={false}
           connectNulls={false}
         />
-        {/* capacity the running pods can actually serve */}
+
+        {/* Provisioned capacity step line */}
         <Line
           dataKey="capacity"
+          type="stepAfter"
           stroke="var(--color-replicas)"
-          strokeWidth={1.5}
-          strokeDasharray="3 3"
+          strokeWidth={1.75}
+          strokeDasharray="5 4"
           dot={false}
           isAnimationActive={false}
+          connectNulls={false}
         />
+
+        {/* Forecast median */}
         <Line
+          type="monotone"
           dataKey="fPoint"
           stroke="var(--color-forecast)"
           strokeWidth={2}
@@ -175,32 +204,38 @@ export function DemandPlot({
           isAnimationActive={false}
           connectNulls={false}
         />
-        <Line
+
+        {/* Measured demand smooth curve + subtle vertical gradient */}
+        <Area
+          type="monotone"
           dataKey="rps"
           stroke="var(--color-demand)"
-          strokeWidth={2}
+          strokeWidth={2.5}
           strokeLinecap="round"
+          fill={`url(#${fadeId})`}
           dot={false}
           isAnimationActive={false}
           connectNulls={false}
         />
+
         <Tooltip
-          cursor={{ stroke: "var(--axis)", strokeWidth: 1 }}
+          cursor={{ stroke: "var(--ink-tertiary)", strokeWidth: 1 }}
           content={
             <Tip
               rows={(r) => [
                 {
                   label: "Measured",
                   value: `${r.rps?.toFixed(1) ?? "—"} req/s`,
-                  swatch: "var(--color-demand)",
+                  swatch: "#ffffff",
                 },
                 {
                   label: "Forecast",
-                  value: r.fPoint != null ? `${r.fPoint.toFixed(1)} req/s` : "—",
+                  value:
+                    r.fPoint != null ? `${r.fPoint.toFixed(1)} req/s` : "—",
                   swatch: "var(--color-forecast)",
                 },
                 {
-                  label: "90% interval",
+                  label: "90% cone",
                   value:
                     r.fLower != null && r.fUpper != null
                       ? `${r.fLower.toFixed(0)} – ${r.fUpper.toFixed(0)}`
@@ -227,7 +262,7 @@ export function ReplicaPlot({
   rows,
   domain,
   maxPods,
-  height = 120,
+  height = 140,
 }: {
   rows: Row[];
   domain: [number, number];
@@ -239,7 +274,7 @@ export function ReplicaPlot({
       <ComposedChart
         data={rows}
         syncId={SYNC}
-        margin={{ top: 8, right: 56, bottom: 4, left: 0 }}
+        margin={{ top: 10, right: 16, bottom: 4, left: 0 }}
       >
         {grid}
         <XAxis {...axisProps(domain)} />
@@ -253,10 +288,10 @@ export function ReplicaPlot({
           y={maxPods}
           stroke="var(--color-critical)"
           strokeWidth={1}
-          strokeDasharray="2 3"
+          strokeDasharray="3 3"
           label={{
             value: "MAX_PODS",
-            position: "right",
+            position: "insideBottomRight",
             fill: "var(--ink-tertiary)",
             fontSize: 9,
           }}
@@ -267,7 +302,7 @@ export function ReplicaPlot({
           stroke="var(--color-replicas)"
           strokeWidth={2}
           fill="var(--color-replicas)"
-          fillOpacity={0.1}
+          fillOpacity={0.12}
           dot={false}
           isAnimationActive={false}
           connectNulls={false}
@@ -275,15 +310,15 @@ export function ReplicaPlot({
         <Line
           dataKey="desired"
           type="stepAfter"
-          stroke="var(--color-replicas)"
-          strokeWidth={1}
-          strokeDasharray="2 2"
+          stroke="var(--color-demand)"
+          strokeWidth={1.2}
+          strokeDasharray="3 3"
           dot={false}
           isAnimationActive={false}
           connectNulls={false}
         />
         <Tooltip
-          cursor={{ stroke: "var(--axis)", strokeWidth: 1 }}
+          cursor={{ stroke: "var(--ink-tertiary)", strokeWidth: 1 }}
           content={
             <Tip
               rows={(r) => [
@@ -293,9 +328,9 @@ export function ReplicaPlot({
                   swatch: "var(--color-replicas)",
                 },
                 {
-                  label: "Requested",
+                  label: "Desired",
                   value: String(r.desired ?? "—"),
-                  swatch: "var(--color-replicas)",
+                  swatch: "#ffffff",
                   dashed: true,
                 },
               ]}
@@ -313,38 +348,59 @@ export function LatencyPlot({
   rows,
   domain,
   sloMs,
-  height = 130,
+  height = 152,
 }: {
   rows: Row[];
   domain: [number, number];
   sloMs: number;
   height?: number;
 }) {
-  const max = Math.max(sloMs * 1.6, ...rows.map((r) => r.p99 ?? 0));
-  const ticks = niceTicks(max);
+  const max = Math.max(sloMs * 1.4, ...rows.map((r) => r.p99 ?? 0));
+  const ticks = niceTicks(max, 3);
 
   return (
     <ResponsiveContainer width="100%" height={height}>
       <ComposedChart
         data={rows}
         syncId={SYNC}
-        margin={{ top: 8, right: 56, bottom: 4, left: 0 }}
+        margin={{ top: 8, right: 14, bottom: 4, left: 0 }}
       >
         {grid}
         <XAxis {...axisProps(domain)} />
-        <YAxis {...yAxisBase} domain={[0, ticks[ticks.length - 1]]} ticks={ticks} />
+        <YAxis
+          {...yAxisBase}
+          domain={[0, ticks[ticks.length - 1]]}
+          ticks={ticks}
+        />
         <ReferenceLine
           y={sloMs}
-          stroke="var(--color-critical)"
+          stroke="var(--color-forecast)"
           strokeWidth={1.5}
-          label={{
-            value: `SLO ${sloMs}ms`,
-            position: "right",
-            fill: "var(--color-critical)",
-            fontSize: 9,
-          }}
+          strokeDasharray="4 4"
+        />
+
+        {/* p50 -> p99 shaded envelope */}
+        <Area
+          type="monotone"
+          dataKey="latRange"
+          stroke="none"
+          fill="var(--color-demand)"
+          fillOpacity={0.1}
+          isAnimationActive={false}
+          connectNulls={false}
         />
         <Line
+          type="monotone"
+          dataKey="p50"
+          stroke="var(--ink-tertiary)"
+          strokeWidth={1.2}
+          strokeDasharray="3 3"
+          dot={false}
+          isAnimationActive={false}
+          connectNulls={false}
+        />
+        <Line
+          type="monotone"
           dataKey="p99"
           stroke="var(--color-demand)"
           strokeWidth={2}
@@ -354,19 +410,26 @@ export function LatencyPlot({
           connectNulls={false}
         />
         <Tooltip
-          cursor={{ stroke: "var(--axis)", strokeWidth: 1 }}
+          cursor={{ stroke: "var(--ink-tertiary)", strokeWidth: 1 }}
           content={
             <Tip
               rows={(r) => [
                 {
                   label: "p99",
                   value: `${r.p99?.toFixed(1) ?? "—"} ms`,
-                  swatch: "var(--color-demand)",
+                  swatch: "#ffffff",
+                },
+                {
+                  label: "p50",
+                  value: `${r.p50?.toFixed(1) ?? "—"} ms`,
+                  swatch: "#a1a1aa",
+                  dashed: true,
                 },
                 {
                   label: "SLO",
                   value: `${sloMs} ms`,
-                  swatch: "var(--color-critical)",
+                  swatch: "var(--color-forecast)",
+                  dashed: true,
                 },
               ]}
             />
@@ -391,9 +454,9 @@ export function Legend({
           {i.band ? (
             <span
               aria-hidden
-              className="h-2.5 w-3.5 shrink-0 rounded-[1px] border"
+              className="h-2.5 w-3.5 shrink-0 rounded-[2px] border"
               style={{
-                borderColor: `color-mix(in srgb, ${i.color} 45%, transparent)`,
+                borderColor: `color-mix(in srgb, ${i.color} 55%, transparent)`,
                 background: `color-mix(in srgb, ${i.color} 18%, transparent)`,
               }}
             />
@@ -408,8 +471,9 @@ export function Legend({
               }}
             />
           )}
-          {/* text never wears the data colour — the mark beside it carries identity */}
-          <span className="text-[11px] text-ink-secondary">{i.label}</span>
+          <span className="text-[11px] font-medium text-ink-secondary">
+            {i.label}
+          </span>
         </li>
       ))}
     </ul>

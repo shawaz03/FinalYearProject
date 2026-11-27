@@ -1,120 +1,111 @@
 @import "tailwindcss";
 
 /* ==========================================================================
-   CloudPulse — "Observatory"
+   CloudPulse — Design A v2 "Monolith Swiss Noir & Pure White"
 
-   A control-room instrument, not a SaaS card grid. The character comes from
-   structure, type and material: tinted surfaces, corner ticks, a dot-grid
-   plane, film grain, and hard typographic scale contrast.
+   Pure gallery white canvas (#FFFFFF / #FAFAFB) contrasted starkly against
+   pitch obsidian surfaces (#09090B) with surgical International Vermilion
+   (#E03400) for conformal lookahead uncertainty and Emerald (#059669) for
+   provisioned capacity & SLA compliance.
 
-   Colour is still reserved for DATA. Chrome is greyscale. That is not
-   restraint for its own sake — it is why three plots can be read at a glance.
-
-   Warm neutral ground: sand/cream in light, espresso in dark. The plane
-   carries a slow gradient; panels sit on a FLAT surface, because a chart
-   rendered over a gradient has no single background to validate contrast
-   against.
-
-   Series palette computed with the data-viz validator, not chosen by eye.
-   No violet anywhere - the previous periwinkle slot read as purple:
-     light (surface #FBF8F1)  ALL PASS · CVD dE 13.7 · normal 20.2 · all >= 3:1
-     dark  (surface #1C1815)  ALL PASS · CVD dE 12.7 · normal 15.6 · all >= 3:1
+   Non-color channels always accompany color: solid stroke = Measured Demand,
+   shaded cone + stroke = Forecast, dashed step line = Provisioned Capacity.
    ========================================================================== */
 
 @theme {
-  --font-sans: var(--font-plex-sans), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-plex-mono), ui-monospace, monospace;
-  --radius-panel: 2px;
-  --radius-chip: 2px;
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  --radius-panel: 14px;
+  --radius-chip: 7px;
 }
 
 :root {
   color-scheme: light;
 
-  /* sand ground; panels sit on flat cream above it */
-  --plane: #efe7d6;
-  --plane-a: #f8f3e7;
-  --plane-b: #ece2cd;
-  --plane-c: #e3d7bd;
-  --surface: #fbf8f1;
-  --surface-raised: #fffdf8;
-  --surface-sunken: #f0ebdf;
+  --plane: #fafafa;
+  --surface: #ffffff;
+  --surface-raised: #ffffff;
+  --surface-sunken: #f4f4f6;
+  --monolith: #09090b;
+  --monolith-surface: #131316;
+  --monolith-border: #27272a;
+  --monolith-ink: #ffffff;
+  --monolith-muted: #a1a1aa;
 
-  --ink: #1a1713;
-  --ink-secondary: #6a6256;
-  --ink-tertiary: #978d7c;
+  --ink: #09090b;
+  --ink-secondary: #52525b;
+  --ink-tertiary: #71717a;
 
-  --grid: #e4dcc9;
-  --axis: #c3b79f;
-  --border: rgba(26, 23, 19, 0.13);
-  --border-strong: rgba(26, 23, 19, 0.26);
-  /* the 1px top highlight that gives a panel material thickness */
-  --bevel: rgba(255, 255, 255, 0.9);
+  --grid: #eceef2;
+  --axis: #d4d4d8;
+  --border: #e4e4e7;
+  --border-strong: #d4d4d8;
 
-  --series-demand: #2060c8;
-  --series-forecast: #cc5a1a;
-  --series-replicas: #009384;
+  /* Measured is pitch ink (#09090B); Forecast is vermilion (#E03400); Capacity is emerald (#059669) */
+  --series-demand: #09090b;
+  --series-forecast: #e03400;
+  --series-replicas: #059669;
 
-  --status-good: #0aac23;
-  --status-warning: #fbb315;
-  --status-serious: #f18a59;
-  --status-critical: #dc3c3d;
-  --success-text: #006c10;
-
-  --grain-opacity: 0.03;
-  --dot-opacity: 0.45;
+  --status-good: #059669;
+  --status-warning: #d97706;
+  --status-serious: #e03400;
+  --status-critical: #dc2626;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:where(:not([data-theme="light"])) {
     color-scheme: dark;
-    --plane: #15110d;
-    --plane-a: #1f1a14;
-    --plane-b: #14110d;
-    --plane-c: #0d0b08;
-    --surface: #1c1815;
-    --surface-raised: #241f1a;
-    --surface-sunken: #110e0b;
-    --ink: #f0ebe2;
-    --ink-secondary: #a79c8c;
-    --ink-tertiary: #7a7163;
-    --grid: #2b251e;
-    --axis: #473f34;
-    --border: rgba(240, 235, 226, 0.1);
-    --border-strong: rgba(240, 235, 226, 0.22);
-    --bevel: rgba(255, 246, 230, 0.07);
-    --series-demand: #5a9bea;
-    --series-forecast: #eb7b33;
-    --series-replicas: #13ad97;
-    --success-text: #53c556;
-    --grain-opacity: 0.04;
-    --dot-opacity: 1;
+    --plane: #09090b;
+    --surface: #121216;
+    --surface-raised: #1a1a20;
+    --surface-sunken: #18181d;
+    --monolith: #09090b;
+    --monolith-surface: #16161b;
+    --monolith-border: #27272e;
+    --monolith-ink: #fafafa;
+    --monolith-muted: #a1a1aa;
+    --ink: #fafafa;
+    --ink-secondary: #a1a1aa;
+    --ink-tertiary: #71717a;
+    --grid: #1e1e26;
+    --axis: #2e2e38;
+    --border: #27272e;
+    --border-strong: #3f3f46;
+    --series-demand: #fafafa;
+    --series-forecast: #ff5722;
+    --series-replicas: #10b981;
+    --status-good: #10b981;
+    --status-warning: #f59e0b;
+    --status-serious: #ff5722;
+    --status-critical: #f43f5e;
   }
 }
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --plane: #15110d;
-  --plane-a: #1f1a14;
-  --plane-b: #14110d;
-  --plane-c: #0d0b08;
-  --surface: #1c1815;
-  --surface-raised: #241f1a;
-  --surface-sunken: #110e0b;
-  --ink: #f0ebe2;
-  --ink-secondary: #a79c8c;
-  --ink-tertiary: #7a7163;
-  --grid: #2b251e;
-  --axis: #473f34;
-  --border: rgba(240, 235, 226, 0.1);
-  --border-strong: rgba(240, 235, 226, 0.22);
-  --bevel: rgba(255, 246, 230, 0.07);
-  --series-demand: #5a9bea;
-  --series-forecast: #eb7b33;
-  --series-replicas: #13ad97;
-  --success-text: #53c556;
-  --grain-opacity: 0.04;
-  --dot-opacity: 1;
+  --plane: #09090b;
+  --surface: #121216;
+  --surface-raised: #1a1a20;
+  --surface-sunken: #18181d;
+  --monolith: #09090b;
+  --monolith-surface: #16161b;
+  --monolith-border: #27272e;
+  --monolith-ink: #fafafa;
+  --monolith-muted: #a1a1aa;
+  --ink: #fafafa;
+  --ink-secondary: #a1a1aa;
+  --ink-tertiary: #71717a;
+  --grid: #1e1e26;
+  --axis: #2e2e38;
+  --border: #27272e;
+  --border-strong: #3f3f46;
+  --series-demand: #fafafa;
+  --series-forecast: #ff5722;
+  --series-replicas: #10b981;
+  --status-good: #10b981;
+  --status-warning: #f59e0b;
+  --status-serious: #ff5722;
+  --status-critical: #f43f5e;
 }
 
 @theme inline {
@@ -122,6 +113,11 @@
   --color-surface: var(--surface);
   --color-surface-raised: var(--surface-raised);
   --color-surface-sunken: var(--surface-sunken);
+  --color-monolith: var(--monolith);
+  --color-monolith-surface: var(--monolith-surface);
+  --color-monolith-border: var(--monolith-border);
+  --color-monolith-ink: var(--monolith-ink);
+  --color-monolith-muted: var(--monolith-muted);
   --color-ink: var(--ink);
   --color-ink-secondary: var(--ink-secondary);
   --color-ink-tertiary: var(--ink-tertiary);
@@ -146,127 +142,55 @@ html {
   background: var(--plane);
 }
 
-/* The ground.
-   Three overlapping layers rather than one linear ramp: two wide, very low
-   contrast radials plus a long diagonal. Close stop values and large radii
-   are what keep a big flat field from banding on 8-bit displays, which a
-   single two-stop gradient across a whole page will almost always do.
-   Fixed attachment so the light stays put while content scrolls under it. */
 body {
+  background: var(--plane);
   color: var(--ink);
-  background-color: var(--plane);
-  background-image:
-    radial-gradient(125% 90% at 10% -5%, var(--plane-a) 0%, transparent 60%),
-    radial-gradient(115% 95% at 95% 5%, var(--plane-b) 0%, transparent 55%),
-    linear-gradient(
-      168deg,
-      var(--plane-a) 0%,
-      var(--plane-b) 48%,
-      var(--plane-c) 100%
-    );
-  background-attachment: fixed;
-  min-height: 100vh;
-}
-
-body {
   font-family: var(--font-sans);
+  min-height: 100vh;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
 
-/* --------------------------------------------------------------------------
-   Material
-   -------------------------------------------------------------------------- */
-
-/* A surveyor's dot grid on the plane. Gives the layout a measured ground
-   without drawing a single decorative line. */
-.plane-grid {
-  background-image: radial-gradient(
-    circle at 1px 1px,
-    var(--axis) 1px,
-    transparent 0
-  );
-  background-size: 28px 28px;
-  opacity: calc(0.13 * var(--dot-opacity));
-}
-
-/* Film grain. Static SVG noise — no gradient, no glow; it reads as material
-   rather than as the usual blurred colour wash. */
-.grain {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
-  opacity: var(--grain-opacity);
-  mix-blend-mode: soft-light;
-}
-
-/* Panels get a 1px lit top edge so they read as physical plates. */
-.plate {
+.studio-card {
   background: var(--surface);
   border: 1px solid var(--border);
-  box-shadow: inset 0 1px 0 0 var(--bevel);
+  border-radius: var(--radius-panel);
+  box-shadow:
+    0 1px 2px rgba(9, 9, 11, 0.04),
+    0 8px 24px -4px rgba(9, 9, 11, 0.05);
 }
 
-/* Corner ticks — instrument-panel registration marks. Drawn with gradients
-   on pseudo-elements so they cost no markup. */
-.ticked {
-  position: relative;
-}
-.ticked::before,
-.ticked::after {
-  content: "";
-  position: absolute;
-  width: 7px;
-  height: 7px;
-  pointer-events: none;
-  border-color: var(--border-strong);
-}
-.ticked::before {
-  top: -1px;
-  left: -1px;
-  border-top: 1px solid;
-  border-left: 1px solid;
-}
-.ticked::after {
-  bottom: -1px;
-  right: -1px;
-  border-bottom: 1px solid;
-  border-right: 1px solid;
+:root[data-theme="dark"] .studio-card {
+  box-shadow: 0 10px 30px -6px rgba(0, 0, 0, 0.45);
 }
 
-/* Hairline measurement rule, used in panel headers. */
-.rule-ticks {
-  background-image: repeating-linear-gradient(
-    to right,
-    var(--axis) 0 1px,
-    transparent 1px 7px
-  );
+.monolith-card {
+  background: var(--monolith);
+  border: 1px solid var(--monolith-border);
+  color: var(--monolith-ink);
+  border-radius: var(--radius-panel);
+  box-shadow: 0 12px 32px -6px rgba(9, 9, 11, 0.24);
 }
-
-/* --------------------------------------------------------------------------
-   Type
-   -------------------------------------------------------------------------- */
 
 .eyebrow {
+  font-family: var(--font-mono);
   font-size: 10px;
   font-weight: 500;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--ink-tertiary);
 }
 
 .display {
-  font-weight: 600;
-  letter-spacing: -0.035em;
-  line-height: 0.88;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  line-height: 0.92;
   font-variant-numeric: proportional-nums;
 }
 
 .tnum {
   font-variant-numeric: tabular-nums;
 }
-
-/* --------------------------------------------------------------------------
-   Motion — purposeful only
-   -------------------------------------------------------------------------- */
 
 @keyframes cp-pulse {
   0%,
@@ -279,8 +203,9 @@ body {
     transform: scale(0.78);
   }
 }
+
 .live-dot {
-  animation: cp-pulse 2.4s ease-in-out infinite;
+  animation: cp-pulse 2.2s ease-in-out infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -294,18 +219,6 @@ body {
 }
 
 ::selection {
-  background: var(--series-demand);
-  color: #ffffff;
-}
-
-::-webkit-scrollbar {
-  width: 9px;
-  height: 9px;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-::-webkit-scrollbar-thumb {
-  background: var(--border-strong);
-  border-radius: 0;
+  background: var(--ink);
+  color: var(--surface);
 }

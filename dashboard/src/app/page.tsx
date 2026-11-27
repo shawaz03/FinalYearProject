@@ -3,6 +3,7 @@
 import * as React from "react";
 import gsap from "gsap";
 import {
+  Activity,
   DollarSign,
   Moon,
   Pause,
@@ -10,14 +11,13 @@ import {
   Radio,
   RotateCcw,
   Sun,
-  Table2,
   TriangleAlert,
 } from "lucide-react";
 
-import { Panel, PanelHeader, Readout } from "@/components/ui/panel";
 import { Badge } from "@/components/ui/badge";
-import { StatTile } from "@/components/stat-tile";
-import { DecisionLog } from "@/components/decision-log";
+import { ArbiterTrailMini, DecisionLog } from "@/components/decision-log";
+import { MetricBar } from "@/components/metric-bar";
+import { PodMatrix } from "@/components/pod-matrix";
 import {
   DemandPlot,
   LatencyPlot,
@@ -26,7 +26,10 @@ import {
 } from "@/components/charts/timeline";
 import { mergeSeries } from "@/lib/series";
 import { RUN, podSeconds, simulateRun } from "@/lib/telemetry";
-import { DEFAULT_WS_URL, useCloudPulseStream } from "@/lib/use-cloudpulse-stream";
+import {
+  DEFAULT_WS_URL,
+  useCloudPulseStream,
+} from "@/lib/use-cloudpulse-stream";
 import { clockHHMMSS, cn, compact } from "@/lib/utils";
 
 /* ----------------------------- theme store -------------------------------- */
@@ -99,15 +102,13 @@ function useReplay(total: number) {
   };
 }
 
-/** Rolls a figure to its new value. Only used on the hero — a dashboard where
- *  every number animates is unreadable. */
 function useRoll(value: number) {
   const [shown, setShown] = React.useState(value);
   const proxy = React.useRef({ v: value });
   React.useEffect(() => {
     const t = gsap.to(proxy.current, {
       v: value,
-      duration: 0.5,
+      duration: 0.45,
       ease: "power2.out",
       onUpdate: () => setShown(proxy.current.v),
     });
@@ -116,13 +117,16 @@ function useRoll(value: number) {
   return shown;
 }
 
-const ASSUMED_USD_PER_POD_HOUR = 0.0425;
+type ViewTab = "overview" | "pods" | "audit" | "table";
 
-/* --------------------------------- page ----------------------------------- */
+const ASSUMED_USD_PER_POD_HOUR = 0.0425;
+const POD_CPU_LIMIT_MILLICORES = 250;
 
 export default function Page() {
   const simRun = React.useMemo(() => simulateRun(), []);
-  const stream = useCloudPulseStream(process.env.NEXT_PUBLIC_WS_URL || undefined);
+  const stream = useCloudPulseStream(
+    process.env.NEXT_PUBLIC_WS_URL || undefined,
+  );
 
   const usingStream =
     stream.status === "connected" &&
@@ -137,7 +141,7 @@ export default function Page() {
   const { head, playing, play, stop, reset } = useReplay(
     activeTelemetry.length,
   );
-  const [showTable, setShowTable] = React.useState(false);
+  const [activeTab, setActiveTab] = React.useState<ViewTab>("overview");
   const [showDollars, setShowDollars] = React.useState(false);
   const theme = React.useSyncExternalStore(
     subscribeTheme,
@@ -146,17 +150,15 @@ export default function Page() {
   );
   const stage = React.useRef<HTMLDivElement>(null);
 
-  /* Entrance: plates settle in sequence, like a rack powering up. Runs once,
-     is short, and is skipped entirely under prefers-reduced-motion. */
   React.useEffect(() => {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     const ctx = gsap.context(() => {
       gsap.from("[data-stagger]", {
         opacity: 0,
-        y: 10,
-        duration: 0.5,
+        y: 8,
+        duration: 0.42,
         ease: "power2.out",
-        stagger: 0.06,
+        stagger: 0.05,
       });
     }, stage);
     return () => ctx.revert();
@@ -175,8 +177,6 @@ export default function Page() {
   const visibleTelemetry = activeTelemetry.slice(0, visibleCount);
   const latestObs = visibleTelemetry[visibleTelemetry.length - 1];
 
-  // Show forecasts produced at or before `latestObs.t` so their `targetT = t + H`
-  // leads visibly ahead of the measured demand curve.
   const visibleForecasts = React.useMemo(
     () =>
       latestObs
@@ -215,8 +215,10 @@ export default function Page() {
             1000,
         )
       : 5;
+
   const violation = latestObs?.slaViolationRate ?? 0;
   const rolled = useRoll(violation * 100);
+  const compliancePct = Math.max(0, Math.min(100, 100 - violation * 100));
   const breaching = latestObs ? latestObs.p99 > activeMeta.sloMs : false;
   const capacityNow = latestObs
     ? latestObs.readyReplicas * activeMeta.capacityRps
@@ -224,6 +226,13 @@ export default function Page() {
   const headroom =
     latestObs && latestObs.rps > 0 ? capacityNow / latestObs.rps : 0;
   const over = violation > 0.02;
+
+  const cpuPct = (frame: typeof latestObs | undefined) => {
+    if (!frame) return 0;
+    const alloc = Math.max(1, frame.readyReplicas * POD_CPU_LIMIT_MILLICORES);
+    return Math.min(100, (frame.cpuMillicores / alloc) * 100);
+  };
+  const currentCpuPct = cpuPct(latestObs);
 
   const sparkOf = (pick: (i: number) => number) => {
     const n = Math.min(14, visibleTelemetry.length);
@@ -251,407 +260,502 @@ export default function Page() {
           stream.errorMessage || "No live arbiter connected — seeded simulation",
       };
 
+  const latestForecast = visibleForecasts[visibleForecasts.length - 1];
+
   return (
-    <div ref={stage} className="relative min-h-screen">
-      {/* material layers */}
-      <div
-        className="plane-grid pointer-events-none fixed inset-0 z-0"
-        aria-hidden
-      />
-      <div className="grain pointer-events-none fixed inset-0 z-0" aria-hidden />
-
-      {/* ------------------------------ masthead ----------------------------- */}
-      <header className="relative z-20 border-b border-edge-strong bg-plane/80 backdrop-blur-md">
-        <div className="mx-auto max-w-[1560px] px-6">
-          <div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-3 py-4">
-            <div className="flex items-end gap-4">
-              <div>
-                <div className="eyebrow mb-1.5">Team A8-8 · Capstone</div>
-                <h1 className="display text-[30px]">
-                  Cloud<span className="text-demand">Pulse</span>
-                </h1>
-              </div>
-              <div className="mb-1 hidden h-7 w-px bg-edge-strong sm:block" />
-              <p className="mb-0.5 hidden max-w-[22ch] text-[11px] leading-snug text-ink-secondary sm:block">
-                Load-aware predictive auto-scaling.
-                <br />
-                Conformal forecasts, hybrid arbitration.
-              </p>
+    <div ref={stage} className="min-h-screen bg-plane text-ink">
+      {/* --------------------- Pitch-Black Top Command Shell -------------------- */}
+      <header className="sticky top-0 z-30 border-b border-monolith-border bg-monolith text-monolith-ink">
+        <div className="mx-auto flex max-w-[1480px] flex-wrap items-center justify-between gap-4 px-6 py-3.5">
+          {/* Brand mark */}
+          <div className="flex items-center gap-3.5">
+            <div className="flex h-8 w-8 items-center justify-center rounded-[7px] bg-monolith-ink text-monolith">
+              <Activity size={16} strokeWidth={2.3} aria-hidden />
             </div>
-
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge tone={sourceBadge.tone} title={sourceBadge.title}>
-                {usingStream ? (
-                  <Radio size={10} aria-hidden />
-                ) : (
-                  <TriangleAlert size={10} aria-hidden />
-                )}
-                {sourceBadge.label}
-              </Badge>
-              <button
-                onClick={() =>
-                  stream.status === "connected" ||
-                  stream.status === "connecting"
-                    ? stream.disconnect()
-                    : stream.connect(DEFAULT_WS_URL)
-                }
-                aria-pressed={stream.status === "connected"}
-                title={`WebSocket endpoint: ${DEFAULT_WS_URL}`}
-                className={cn(
-                  "flex items-center gap-1.5 rounded-[var(--radius-chip)] border px-2 py-1 text-[10px] uppercase tracking-wider transition-colors",
-                  stream.status === "connected"
-                    ? "border-edge-strong bg-surface-raised text-ink"
-                    : "border-edge text-ink-secondary hover:border-edge-strong hover:text-ink",
-                )}
-              >
-                <Radio size={11} aria-hidden />
-                {stream.status === "connected"
-                  ? "disconnect ws"
-                  : stream.status === "connecting"
-                    ? "connecting..."
-                    : "connect ws"}
-              </button>
-              <button
-                onClick={() => (showTable ? setShowTable(false) : setShowTable(true))}
-                aria-pressed={showTable}
-                className={cn(
-                  "flex items-center gap-1.5 rounded-[var(--radius-chip)] border px-2 py-1 text-[10px] uppercase tracking-wider transition-colors",
-                  showTable
-                    ? "border-edge-strong bg-surface-raised text-ink"
-                    : "border-edge text-ink-secondary hover:border-edge-strong hover:text-ink",
-                )}
-              >
-                <Table2 size={11} aria-hidden /> table
-              </button>
-              <button
-                onClick={toggleTheme}
-                aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
-                className="rounded-[var(--radius-chip)] border border-edge p-1.5 text-ink-secondary transition-colors hover:border-edge-strong hover:text-ink"
-              >
-                {theme === "dark" ? <Sun size={12} /> : <Moon size={12} />}
-              </button>
+            <div className="leading-tight">
+              <h1 className="text-[17px] font-bold tracking-tight text-monolith-ink">
+                CloudPulse
+              </h1>
+              <div className="font-mono text-[9px] uppercase tracking-[0.14em] text-monolith-muted">
+                Predictive Kubernetes Autoscaler
+              </div>
             </div>
           </div>
 
-          {/* instrument rail */}
-          <div className="flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-edge py-2">
-            <span className="flex items-center gap-1.5">
-              <span
-                className="live-dot h-1.5 w-1.5 rounded-full bg-demand"
-                aria-hidden
-              />
-              <span className="eyebrow">
-                {usingStream
-                  ? activeMeta.live
-                    ? "streaming"
-                    : "ws replay"
-                  : "replaying"}
+          {/* Segmented View Switcher */}
+          <nav
+            aria-label="Dashboard views"
+            className="flex flex-wrap items-center gap-1 rounded-[8px] border border-monolith-border bg-monolith-surface p-1"
+          >
+            {(
+              [
+                ["overview", "Control Plane"],
+                ["pods", "Pod Matrix"],
+                ["audit", "Audit Log"],
+                ["table", "Data Table"],
+              ] as const
+            ).map(([key, label]) => (
+              <button
+                key={key}
+                onClick={() => setActiveTab(key)}
+                aria-pressed={activeTab === key}
+                className={cn(
+                  "rounded-[6px] px-3.5 py-1.5 text-[12px]",
+                  activeTab === key
+                    ? "bg-monolith-ink font-semibold text-monolith"
+                    : "font-medium text-monolith-muted hover:text-monolith-ink",
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </nav>
+
+          {/* Status & Connection Controls */}
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge
+              tone={sourceBadge.tone}
+              title={sourceBadge.title}
+              className="rounded-full border-monolith-border bg-monolith-surface px-2.5 py-1 text-monolith-ink"
+            >
+              {usingStream ? (
+                <Radio size={10} className="text-replicas" aria-hidden />
+              ) : (
+                <TriangleAlert size={10} className="text-forecast" aria-hidden />
+              )}
+              <span>
+                {sourceBadge.label} · {activeMeta.runId}
               </span>
-            </span>
-            <Readout k="run" v={activeMeta.runId} />
-            <Readout k="scaler" v={activeMeta.scaler} />
-            <Readout k="profile" v={activeMeta.profile} />
-            <Readout k="horizon" v={`${activeMeta.horizonS}s`} />
-            <Readout k="warmup" v={`${activeMeta.warmupSeconds}s`} />
-            <Readout k="C" v={`${activeMeta.capacityRps} rps/pod`} />
-            <Readout
-              k="clock"
-              v={latestObs ? clockHHMMSS(latestObs.t) : "—"}
-            />
+            </Badge>
+
+            <button
+              onClick={() =>
+                stream.status === "connected" || stream.status === "connecting"
+                  ? stream.disconnect()
+                  : stream.connect(DEFAULT_WS_URL)
+              }
+              aria-pressed={stream.status === "connected"}
+              title={`WebSocket endpoint: ${DEFAULT_WS_URL}`}
+              className={cn(
+                "flex items-center gap-1.5 rounded-[7px] px-3 py-1.5 text-[11px] font-semibold transition-colors",
+                stream.status === "connected"
+                  ? "border border-monolith-border bg-monolith-surface text-monolith-ink hover:bg-monolith-border"
+                  : "bg-monolith-ink text-monolith hover:opacity-90",
+              )}
+            >
+              <Radio size={12} aria-hidden />
+              {stream.status === "connected"
+                ? "disconnect ws"
+                : stream.status === "connecting"
+                  ? "connecting..."
+                  : "connect ws"}
+            </button>
+
+            <button
+              onClick={toggleTheme}
+              aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+              className="rounded-[7px] border border-monolith-border bg-monolith-surface p-2 text-monolith-muted transition-colors hover:text-monolith-ink"
+            >
+              {theme === "dark" ? <Sun size={13} /> : <Moon size={13} />}
+            </button>
           </div>
         </div>
       </header>
 
-      <main className="relative z-10 mx-auto max-w-[1560px] px-6 py-7">
-        {/* --------------------------- hero + tiles -------------------------- */}
-        <section className="mb-6 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.45fr)_repeat(3,minmax(0,1fr))]">
-          <Panel
-            data-stagger
-            className="relative flex flex-col justify-between overflow-hidden px-6 py-5"
-          >
-            {/* a single hairline accent on the live edge of the plate */}
-            <span
-              aria-hidden
-              className="absolute inset-y-0 left-0 w-[2px]"
-              style={{
-                background: over
-                  ? "var(--color-critical)"
-                  : "var(--color-replicas)",
-              }}
-            />
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <div className="eyebrow mb-1">Headline metric</div>
-                <div className="text-[12px] text-ink-secondary">
-                  SLA violations — requests slower than {activeMeta.sloMs} ms
-                </div>
+      {/* --------------------- Architectural White Metadata Strip --------------- */}
+      <div className="border-b border-edge bg-surface">
+        <div className="mx-auto flex max-w-[1480px] flex-wrap items-center justify-between gap-4 px-6 py-2.5 font-mono text-[10px]">
+          <div className="flex flex-wrap items-center gap-x-7 gap-y-1.5">
+            {[
+              ["PROFILE", activeMeta.profile],
+              ["HORIZON", `t + ${activeMeta.horizonS}s`],
+              ["WARMUP", `${activeMeta.warmupSeconds}s`],
+              [
+                "CAPACITY C",
+                usingStream
+                  ? `${activeMeta.capacityRps} rps/pod`
+                  : `${activeMeta.capacityRps} rps/pod (provisional)`,
+              ],
+              ["MAX PODS", String(activeMeta.maxPods)],
+              ["CLOCK", latestObs ? clockHHMMSS(latestObs.t) : "—"],
+            ].map(([k, v]) => (
+              <div key={k} className="flex items-center gap-2">
+                <span className="tracking-wider text-ink-tertiary">{k}</span>
+                <span className="font-medium text-ink tnum">{v}</span>
               </div>
-              <span className="flex shrink-0 items-center gap-1.5">
-                <span
-                  aria-hidden
-                  className="h-1.5 w-1.5 rounded-full"
-                  style={{
-                    background: over
-                      ? "var(--color-critical)"
-                      : "var(--color-good)",
-                  }}
-                />
-                <span className="eyebrow">
-                  {over ? "breaching" : "within target"}
-                </span>
-              </span>
-            </div>
+            ))}
+          </div>
 
-            <div className="my-5 flex items-end gap-2">
-              <span
-                className="display text-[clamp(56px,8vw,96px)] tnum"
-                style={{ color: over ? "var(--color-critical)" : undefined }}
-              >
-                {rolled.toFixed(2)}
-              </span>
-              <span className="mb-2 text-[20px] text-ink-tertiary">%</span>
-            </div>
-
-            <div className="flex items-center gap-4 border-t border-edge pt-3">
-              <Readout k="target" v="< 2.00%" />
-              <Readout k="window" v="cumulative" />
-              <Readout
-                k="headroom"
-                v={`${headroom.toFixed(2)}×`}
-                tone={
-                  headroom < 1
-                    ? "var(--color-critical)"
-                    : "var(--ink-secondary)"
-                }
-              />
-            </div>
-          </Panel>
-
-          <StatTile
-            data-stagger
-            label="Demand"
-            value={latestObs ? latestObs.rps.toFixed(0) : "—"}
-            unit="req/s"
-            tone="var(--color-demand)"
-            spark={sparkOf((i) => visibleTelemetry[i]?.rps ?? 0)}
-            hint={`capacity ${capacityNow.toFixed(0)} req/s`}
-          />
-          <StatTile
-            data-stagger
-            label="Replicas ready"
-            value={latestObs ? String(latestObs.readyReplicas) : "—"}
-            unit={`/ ${activeMeta.maxPods}`}
-            tone="var(--color-replicas)"
-            spark={sparkOf((i) => visibleTelemetry[i]?.readyReplicas ?? 0)}
-            hint={`requested ${latestObs?.desiredReplicas ?? "—"} · C = ${activeMeta.capacityRps}`}
-            state={
-              latestObs && latestObs.desiredReplicas !== latestObs.readyReplicas
-                ? { text: "warming", color: "var(--color-warning)" }
-                : undefined
-            }
-          />
-          <StatTile
-            data-stagger
-            label="p99 latency"
-            value={latestObs ? latestObs.p99.toFixed(0) : "—"}
-            unit="ms"
-            tone={breaching ? "var(--color-critical)" : "var(--ink)"}
-            spark={sparkOf((i) => visibleTelemetry[i]?.p99 ?? 0)}
-            hint={`p50 ${latestObs ? latestObs.p50.toFixed(0) : "—"} ms · client-side`}
-            state={
-              breaching
-                ? { text: "over slo", color: "var(--color-critical)" }
-                : { text: "nominal", color: "var(--color-good)" }
-            }
-          />
-        </section>
-
-        {/* ---------------------------- timeline ---------------------------- */}
-        <Panel data-stagger className="mb-6">
-          <PanelHeader index="01" title="Timeline" unit="shared time axis">
+          <div className="flex items-center gap-3">
             {!usingStream ? (
               <div className="flex items-center gap-1.5">
                 <button
                   onClick={() => (playing ? stop() : play(0))}
-                  className="flex items-center gap-1.5 rounded-[var(--radius-chip)] border border-edge px-2 py-1 text-[10px] uppercase tracking-wider text-ink-secondary transition-colors hover:border-edge-strong hover:text-ink"
+                  className="flex items-center gap-1.5 rounded-[6px] border border-edge px-2.5 py-1 text-[10px] font-medium uppercase tracking-wider text-ink-secondary transition-colors hover:border-ink hover:text-ink"
                 >
-                  {playing ? <Pause size={11} /> : <Play size={11} />}
+                  {playing ? <Pause size={10} /> : <Play size={10} />}
                   {playing ? "pause" : "replay"}
                 </button>
                 <button
                   onClick={reset}
-                  aria-label="Show the whole run"
-                  className="rounded-[var(--radius-chip)] border border-edge p-1.5 text-ink-secondary transition-colors hover:border-edge-strong hover:text-ink"
+                  aria-label="Show full run"
+                  className="rounded-[6px] border border-edge p-1 text-ink-secondary transition-colors hover:border-ink hover:text-ink"
                 >
                   <RotateCcw size={11} />
                 </button>
               </div>
             ) : null}
-          </PanelHeader>
+            <span
+              className={cn(
+                "tracking-wider",
+                activeMeta.live ? "text-replicas" : "text-forecast",
+              )}
+            >
+              {usingStream
+                ? activeMeta.live
+                  ? "LIVE CLUSTER STREAM · LIVE=TRUE"
+                  : "WS REPLAY · LIVE=FALSE"
+                : "SEEDED SIMULATION · LIVE=FALSE"}
+            </span>
+          </div>
+        </div>
+      </div>
 
-          {[
-            {
-              title: "Demand",
-              sub: `measured vs forecast at t+${activeMeta.horizonS}s`,
-              legend: [
-                { label: "Measured", color: "var(--color-demand)" },
-                { label: "Forecast", color: "var(--color-forecast)" },
-                {
-                  label: "90% interval",
-                  color: "var(--color-forecast)",
-                  band: true,
-                },
-                {
-                  label: "Capacity",
-                  color: "var(--color-replicas)",
-                  dashed: true,
-                },
-              ],
-              plot: <DemandPlot rows={rows} domain={domain} />,
-            },
-            {
-              title: "Replicas",
-              sub: "pods",
-              legend: [
-                { label: "Ready", color: "var(--color-replicas)" },
-                {
-                  label: "Requested",
-                  color: "var(--color-replicas)",
-                  dashed: true,
-                },
-              ],
-              plot: (
-                <ReplicaPlot
-                  rows={rows}
-                  domain={domain}
-                  maxPods={activeMeta.maxPods}
+      {/* ----------------------------- Main Stage ------------------------------- */}
+      <main className="mx-auto max-w-[1480px] px-6 py-7">
+        {/* ROW 1: Inverted Black Hero SLA Monolith + 3-Col Architectural Metric Tray */}
+        <section
+          data-stagger
+          className="mb-6 grid grid-cols-1 gap-5 xl:grid-cols-[350px_minmax(0,1fr)]"
+        >
+          {/* Inverted Pitch-Black SLA Monolith */}
+          <div className="monolith-card flex flex-col justify-between gap-4 px-6 py-5">
+            <div className="flex items-center justify-between gap-3">
+              <span className="font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-monolith-muted">
+                SLA violation rate
+              </span>
+              <span
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 font-mono text-[9px] uppercase tracking-wider",
+                  over
+                    ? "border-critical/40 bg-critical/15 text-critical"
+                    : "border-replicas/40 bg-replicas/15 text-replicas",
+                )}
+              >
+                <span
+                  className={cn(
+                    "h-1.5 w-1.5 rounded-full",
+                    over ? "bg-critical" : "bg-replicas",
+                  )}
+                  aria-hidden
                 />
-              ),
-            },
-            {
-              title: "Latency",
-              sub: "p99, client-side, ms",
-              legend: [],
-              plot: (
+                {over ? "breaching" : "< 2.0% target"}
+              </span>
+            </div>
+
+            <div className="flex items-baseline gap-1.5">
+              <span
+                className={cn(
+                  "display text-[52px] tnum",
+                  over ? "text-critical" : "text-monolith-ink",
+                )}
+              >
+                {rolled.toFixed(2)}
+              </span>
+              <span className="text-[20px] font-medium text-monolith-muted">
+                %
+              </span>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <div className="h-1.5 w-full overflow-hidden rounded-full bg-monolith-border">
+                <div
+                  className={cn(
+                    "h-full rounded-full transition-all duration-300",
+                    over ? "bg-critical" : "bg-replicas",
+                  )}
+                  style={{ width: `${compliancePct}%` }}
+                />
+              </div>
+              <div className="flex items-center justify-between font-mono text-[11px] text-monolith-muted tnum">
+                <span>{compliancePct.toFixed(2)}% within {activeMeta.sloMs}ms</span>
+                <span>Headroom {headroom.toFixed(2)}×</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Floating Pure White Architectural 3-Column Metric Bar */}
+          <MetricBar
+            items={[
+              {
+                id: "demand",
+                label: "Offered demand",
+                value: latestObs ? latestObs.rps.toFixed(0) : "—",
+                unit: "req/s",
+                tone: "var(--color-demand)",
+                spark: sparkOf((i) => visibleTelemetry[i]?.rps ?? 0),
+                hint: `Capacity ${capacityNow.toFixed(0)} req/s · ${
+                  latestForecast
+                    ? `Upper +${activeMeta.horizonS}s: ${latestForecast.upper.toFixed(0)} rps`
+                    : "no forecast yet"
+                }`,
+              },
+              {
+                id: "latency",
+                label: "Client p99 latency",
+                value: latestObs ? latestObs.p99.toFixed(1) : "—",
+                unit: "ms",
+                tone: breaching
+                  ? "var(--color-critical)"
+                  : "var(--color-forecast)",
+                spark: sparkOf((i) => visibleTelemetry[i]?.p99 ?? 0),
+                hint: `p50 ${latestObs ? latestObs.p50.toFixed(1) : "—"} ms · p90 ${latestObs ? latestObs.p90.toFixed(1) : "—"} ms · client-side k6`,
+              },
+              {
+                id: "cpu",
+                label: "CPU headroom",
+                value: latestObs ? currentCpuPct.toFixed(0) : "—",
+                unit: "% used",
+                tone:
+                  currentCpuPct > 85
+                    ? "var(--color-critical)"
+                    : "var(--color-replicas)",
+                spark: sparkOf((i) => cpuPct(visibleTelemetry[i])),
+                hint: `${latestObs ? (latestObs.cpuMillicores / 1000).toFixed(2) : "—"} cores · Reactive guard > 85%`,
+              },
+            ]}
+          />
+        </section>
+
+        {/* ----------------------------- Tab Content ---------------------------- */}
+        {activeTab === "overview" ? (
+          <>
+            {/* ROW 2: Floating Pure White Smooth Forecast Chart Stage */}
+            <section data-stagger className="studio-card mb-6 px-6 py-5">
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-4">
+                <div>
+                  <h2 className="text-[16px] font-semibold tracking-tight text-ink">
+                    Demand Forecast &amp; Lookahead Window
+                  </h2>
+                  <p className="text-[12px] text-ink-secondary">
+                    Measured arrivals vs conformal 90% prediction cone extending
+                    ahead to{" "}
+                    <span className="font-mono font-medium text-ink">
+                      t + {activeMeta.horizonS}s
+                    </span>
+                  </p>
+                </div>
+                <Legend
+                  items={[
+                    { label: "Measured RPS", color: "var(--color-demand)" },
+                    {
+                      label: "Forecast median",
+                      color: "var(--color-forecast)",
+                    },
+                    {
+                      label: "90% interval",
+                      color: "var(--color-forecast)",
+                      band: true,
+                    },
+                    {
+                      label: "Capacity",
+                      color: "var(--color-replicas)",
+                      dashed: true,
+                    },
+                  ]}
+                />
+              </div>
+              <DemandPlot
+                rows={rows}
+                domain={domain}
+                nowT={latestObs?.t}
+                horizonS={activeMeta.horizonS}
+              />
+            </section>
+
+            {/* ROW 3: Pod Cluster Matrix | Latency Tail Spread | Arbiter Trail & Cost */}
+            <section
+              data-stagger
+              className="grid grid-cols-1 gap-5 lg:grid-cols-3"
+            >
+              <div className="studio-card flex flex-col justify-between gap-4 px-5 py-5">
+                <div className="flex items-center justify-between gap-2">
+                  <h2 className="text-[14px] font-semibold text-ink">
+                    Pod Cluster Matrix
+                  </h2>
+                  <span className="font-mono text-[10px] uppercase tracking-wider text-ink-tertiary">
+                    Kubernetes API
+                  </span>
+                </div>
+                <PodMatrix
+                  ready={latestObs?.readyReplicas ?? activeMeta.minPods}
+                  desired={latestObs?.desiredReplicas ?? activeMeta.minPods}
+                  maxPods={activeMeta.maxPods}
+                  capacityRps={activeMeta.capacityRps}
+                />
+              </div>
+
+              <div className="studio-card flex flex-col justify-between gap-3 px-5 py-5">
+                <div className="flex items-center justify-between gap-2">
+                  <h2 className="text-[14px] font-semibold text-ink">
+                    Latency Tail Spread (p50 -&gt; p99)
+                  </h2>
+                  <span className="font-mono text-[10px] uppercase tracking-wider text-forecast">
+                    SLO {activeMeta.sloMs} ms
+                  </span>
+                </div>
                 <LatencyPlot
                   rows={rows}
                   domain={domain}
                   sloMs={activeMeta.sloMs}
                 />
-              ),
-            },
-          ].map((band, i) => (
-            <div
-              key={band.title}
-              className={cn("px-4 pb-2 pt-3", i > 0 && "border-t border-edge")}
-            >
-              <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2">
-                <span className="text-[11px] font-medium">
-                  {band.title}{" "}
-                  <span className="text-ink-tertiary">— {band.sub}</span>
-                </span>
-                {band.legend.length ? <Legend items={band.legend} /> : null}
-              </div>
-              {band.plot}
-            </div>
-          ))}
-        </Panel>
-
-        {/* ------------------------ decisions + cost ------------------------ */}
-        <section className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-          <Panel data-stagger>
-            <PanelHeader index="02" title="Decisions" unit="hybrid arbiter" />
-            <DecisionLog decisions={decisions} />
-          </Panel>
-
-          <Panel data-stagger>
-            <PanelHeader index="03" title="Cost" unit="pod-seconds">
-              <button
-                onClick={() => setShowDollars((s) => !s)}
-                aria-pressed={showDollars}
-                className={cn(
-                  "flex items-center gap-1 rounded-[var(--radius-chip)] border px-2 py-0.5 text-[10px] uppercase tracking-wider transition-colors",
-                  showDollars
-                    ? "border-edge-strong bg-surface-raised text-ink"
-                    : "border-edge text-ink-secondary hover:border-edge-strong hover:text-ink",
-                )}
-              >
-                <DollarSign size={10} aria-hidden />
-                {showDollars ? "hide $" : "show $"}
-              </button>
-            </PanelHeader>
-            <div className="flex flex-col gap-4 px-4 py-4">
-              <div>
-                <div className="flex items-baseline gap-1.5">
-                  <span className="display text-[38px]">
-                    {compact(cost, 1)}
-                  </span>
-                  <span className="text-[12px] text-ink-tertiary">
-                    pod-seconds
-                  </span>
-                </div>
-                <p className="mt-2 text-[11px] leading-relaxed text-ink-secondary">
-                  The integral of replicas over time. A local cluster has no
-                  dollar cost, so pod-seconds is the primary metric (D14).
+                <p className="text-[11px] text-ink-secondary">
+                  Client-side k6 timing envelope (avoids server coordinated
+                  omission).
                 </p>
               </div>
 
-              {showDollars ? (
-                <div className="rounded-[var(--radius-chip)] border border-edge bg-surface-sunken px-3 py-2.5">
-                  <div className="mb-1 flex items-center gap-1.5">
-                    <TriangleAlert
-                      size={11}
-                      className="text-warning"
-                      aria-hidden
-                    />
-                    <span className="eyebrow">derived estimate</span>
+              <div className="studio-card flex flex-col justify-between gap-4 px-5 py-5">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h2 className="text-[14px] font-semibold text-ink">
+                    Arbiter Trail &amp; Cost
+                  </h2>
+                  <button
+                    onClick={() => setShowDollars((s) => !s)}
+                    aria-pressed={showDollars}
+                    className={cn(
+                      "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 font-mono text-[10px] font-medium uppercase tracking-wider transition-colors",
+                      showDollars
+                        ? "border-monolith-border bg-monolith text-monolith-ink"
+                        : "border-edge bg-surface-sunken text-ink-secondary hover:border-ink hover:text-ink",
+                    )}
+                  >
+                    <DollarSign size={10} aria-hidden />
+                    {compact(cost, 1)} pod-s · {showDollars ? "hide $" : "show $"}
+                  </button>
+                </div>
+
+                <ArbiterTrailMini decisions={decisions} />
+
+                {showDollars ? (
+                  <div className="rounded-[8px] border border-forecast/30 bg-forecast/[0.06] px-3 py-2.5">
+                    <div className="flex items-center justify-between font-mono text-[11px] font-semibold text-forecast tnum">
+                      <span>DERIVED ESTIMATE</span>
+                      <span>
+                        ≈ $
+                        {((cost / 3600) * ASSUMED_USD_PER_POD_HOUR).toFixed(3)}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-[10px] text-ink-secondary">
+                      Assumes ${ASSUMED_USD_PER_POD_HOUR.toFixed(4)} / pod-hour.
+                      Pod-seconds remains the primary D14 metric.
+                    </p>
                   </div>
-                  <p className="font-mono text-[12px] tabular-nums">
-                    ≈ ${((cost / 3600) * ASSUMED_USD_PER_POD_HOUR).toFixed(3)}
-                  </p>
-                  <p className="mt-1 text-[10px] leading-relaxed text-ink-tertiary">
-                    Assumes ${ASSUMED_USD_PER_POD_HOUR.toFixed(4)} / pod-hour.
-                    Printed on screen so the price assumption stays explicit.
+                ) : (
+                  <div className="flex items-center justify-between border-t border-edge pt-3 font-mono text-[10px] text-ink-tertiary tnum">
+                    <span>Mean {(cost / elapsedSeconds).toFixed(2)} pods</span>
+                    <span>
+                      Peak{" "}
+                      {visibleTelemetry.length
+                        ? Math.max(...visibleTelemetry.map((r) => r.readyReplicas))
+                        : 0}{" "}
+                      pods
+                    </span>
+                    <span>
+                      {
+                        decisions.filter(
+                          (d) => d.toReplicas !== d.fromReplicas,
+                        ).length
+                      }{" "}
+                      actuations
+                    </span>
+                  </div>
+                )}
+              </div>
+            </section>
+          </>
+        ) : null}
+
+        {activeTab === "pods" ? (
+          <section className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+            <div className="studio-card px-6 py-5">
+              <div className="mb-4 flex items-center justify-between">
+                <div>
+                  <h2 className="text-[16px] font-semibold text-ink">
+                    Cluster Pod Topology ({activeMeta.maxPods} Slots)
+                  </h2>
+                  <p className="text-[12px] text-ink-secondary">
+                    Authoritative Kubernetes deployment status + readiness
+                    warmup progress
                   </p>
                 </div>
-              ) : null}
-
-              <dl className="flex flex-col gap-1.5 border-t border-edge pt-3">
-                {[
-                  ["mean replicas", (cost / elapsedSeconds).toFixed(2)],
-                  [
-                    "peak replicas",
-                    String(
-                      visibleTelemetry.length
-                        ? Math.max(...visibleTelemetry.map((r) => r.readyReplicas))
-                        : 0,
-                    ),
-                  ],
-                  [
-                    "actuations",
-                    String(
-                      decisions.filter((d) => d.toReplicas !== d.fromReplicas)
-                        .length,
-                    ),
-                  ],
-                ].map(([k, v]) => (
-                  <div key={k} className="flex justify-between gap-3">
-                    <dt className="eyebrow">{k}</dt>
-                    <dd className="font-mono text-[11px] tabular-nums text-ink-secondary">
-                      {v}
-                    </dd>
-                  </div>
-                ))}
-              </dl>
+              </div>
+              <PodMatrix
+                ready={latestObs?.readyReplicas ?? activeMeta.minPods}
+                desired={latestObs?.desiredReplicas ?? activeMeta.minPods}
+                maxPods={activeMeta.maxPods}
+                capacityRps={activeMeta.capacityRps}
+                expanded
+              />
             </div>
-          </Panel>
-        </section>
 
-        {/* --------------------------- table view --------------------------- */}
-        {showTable ? (
-          <Panel className="mt-6">
-            <PanelHeader index="04" title="Table view" unit="no colour encoding" />
-            <div className="max-h-[420px] overflow-auto">
+            <div className="studio-card flex flex-col justify-between gap-4 px-6 py-5">
+              <div>
+                <h2 className="text-[16px] font-semibold text-ink">
+                  Replica Actuation Timeline
+                </h2>
+                <p className="text-[12px] text-ink-secondary">
+                  Ready vs Desired pod count bounded cleanly by [
+                  {activeMeta.minPods}, {activeMeta.maxPods}]
+                </p>
+              </div>
+              <ReplicaPlot
+                rows={rows}
+                domain={domain}
+                maxPods={activeMeta.maxPods}
+                height={220}
+              />
+            </div>
+          </section>
+        ) : null}
+
+        {activeTab === "audit" ? (
+          <section className="studio-card overflow-hidden">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-edge px-5 py-4">
+              <div>
+                <h2 className="text-[16px] font-semibold text-ink">
+                  Hybrid Arbiter Decision Log
+                </h2>
+                <p className="text-[12px] text-ink-secondary">
+                  Every control tick with capacity arithmetic and actuation mode
+                </p>
+              </div>
+              <span className="font-mono text-[11px] text-ink-tertiary">
+                C = {activeMeta.capacityRps} rps/pod
+              </span>
+            </div>
+            <DecisionLog decisions={decisions} />
+          </section>
+        ) : null}
+
+        {activeTab === "table" ? (
+          <section className="studio-card overflow-hidden">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-edge px-5 py-4">
+              <div>
+                <h2 className="text-[16px] font-semibold text-ink">
+                  Raw Telemetry &amp; Horizon Table
+                </h2>
+                <p className="text-[12px] text-ink-secondary">
+                  Accessible numeric export with zero colour encoding (includes{" "}
+                  <span className="font-mono">t + {activeMeta.horizonS}s</span>{" "}
+                  lead rows)
+                </p>
+              </div>
+              <span className="font-mono text-[11px] text-ink-tertiary">
+                {rows.length} rows
+              </span>
+            </div>
+            <div className="max-h-[540px] overflow-auto">
               <table className="w-full border-collapse text-left font-mono text-[11px] tabular-nums">
                 <thead className="sticky top-0 bg-surface">
                   <tr className="border-b border-edge">
@@ -663,12 +767,13 @@ export default function Page() {
                       "upper",
                       "capacity",
                       "ready",
+                      "p50",
                       "p99",
                     ].map((h) => (
                       <th
                         key={h}
                         scope="col"
-                        className="px-3 py-2 text-[10px] uppercase tracking-wider text-ink-tertiary"
+                        className="px-4 py-2.5 text-[10px] font-medium uppercase tracking-wider text-ink-tertiary"
                       >
                         {h}
                       </th>
@@ -677,29 +782,35 @@ export default function Page() {
                 </thead>
                 <tbody>
                   {rows.map((r) => (
-                    <tr key={r.t} className="border-b border-edge/50">
-                      <td className="px-3 py-1 text-ink-tertiary">
+                    <tr
+                      key={r.t}
+                      className="border-b border-edge/50 hover:bg-surface-sunken"
+                    >
+                      <td className="px-4 py-1.5 text-ink-tertiary">
                         {clockHHMMSS(r.t)}
                       </td>
-                      <td className="px-3 py-1">
+                      <td className="px-4 py-1.5 font-medium text-ink">
                         {r.rps != null ? r.rps.toFixed(1) : "—"}
                       </td>
-                      <td className="px-3 py-1">
+                      <td className="px-4 py-1.5 text-ink">
                         {r.fPoint != null ? r.fPoint.toFixed(1) : "—"}
                       </td>
-                      <td className="px-3 py-1 text-ink-secondary">
+                      <td className="px-4 py-1.5 text-ink-secondary">
                         {r.fLower != null ? r.fLower.toFixed(1) : "—"}
                       </td>
-                      <td className="px-3 py-1 text-ink-secondary">
+                      <td className="px-4 py-1.5 text-ink-secondary">
                         {r.fUpper != null ? r.fUpper.toFixed(1) : "—"}
                       </td>
-                      <td className="px-3 py-1 text-ink-secondary">
+                      <td className="px-4 py-1.5 text-ink">
                         {r.capacity != null ? r.capacity.toFixed(0) : "—"}
                       </td>
-                      <td className="px-3 py-1">
+                      <td className="px-4 py-1.5 text-ink">
                         {r.replicas != null ? r.replicas : "—"}
                       </td>
-                      <td className="px-3 py-1">
+                      <td className="px-4 py-1.5 text-ink-secondary">
+                        {r.p50 != null ? r.p50.toFixed(1) : "—"}
+                      </td>
+                      <td className="px-4 py-1.5 text-ink">
                         {r.p99 != null ? r.p99.toFixed(1) : "—"}
                       </td>
                     </tr>
@@ -707,20 +818,14 @@ export default function Page() {
                 </tbody>
               </table>
             </div>
-          </Panel>
+          </section>
         ) : null}
 
-        <footer className="mt-7 flex flex-wrap items-center gap-x-5 gap-y-1 border-t border-edge pt-4">
-          <span className="eyebrow">Mohan Babu University</span>
-          <Readout
-            k="C"
-            v={
-              usingStream
-                ? `${activeMeta.capacityRps} req/s per pod`
-                : `${activeMeta.capacityRps} req/s per pod — provisional`
-            }
-          />
-          <Readout k="latency" v="client-side" />
+        <footer className="mt-8 flex flex-wrap items-center justify-between gap-4 border-t border-edge pt-4 font-mono text-[10px] uppercase tracking-wider text-ink-tertiary">
+          <span>CloudPulse · Team A8-8 · Mohan Babu University</span>
+          <span>
+            Latency: Client-side k6 · Cost metric: pod-seconds (D14)
+          </span>
         </footer>
       </main>
     </div>

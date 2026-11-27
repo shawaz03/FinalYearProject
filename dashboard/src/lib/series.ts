@@ -2,8 +2,8 @@ import type { ForecastFrame, TelemetryFrame } from "./telemetry";
 
 /**
  * One row of the aligned timeline. Every chart in the stack renders from this
- * same array and the same x domain, so the three plots line up exactly and a
- * crosshair means the same instant in all of them.
+ * same array and the same x domain, so all plots and crosshairs align to the
+ * exact same instant.
  *
  * Rows beyond the latest measured telemetry represent the leading forecast
  * horizon `[now, now + H]`: measured fields are `null` while `fPoint`,
@@ -21,7 +21,11 @@ export interface Row {
   fRange: [number, number] | null;
   replicas: number | null;
   desired: number | null;
+  p50: number | null;
+  p90: number | null;
   p99: number | null;
+  /** [p50, p99] spread ribbon for latency envelope rendering */
+  latRange: [number, number] | null;
   /** capacity the running replicas can serve, in RPS — the honest "is it enough" line */
   capacity: number | null;
 }
@@ -89,6 +93,8 @@ export function mergeSeries(
     const f = at(t);
     const lower = f ? round(f.lower, 1) : null;
     const upper = f ? round(f.upper, 1) : null;
+    const p50 = frame ? frame.p50 : null;
+    const p99 = frame ? frame.p99 : null;
     return {
       t,
       rps: frame ? frame.rps : null,
@@ -98,7 +104,10 @@ export function mergeSeries(
       fRange: lower != null && upper != null ? [lower, upper] : null,
       replicas: frame ? frame.readyReplicas : null,
       desired: frame ? frame.desiredReplicas : null,
-      p99: frame ? frame.p99 : null,
+      p50,
+      p90: frame ? frame.p90 : null,
+      p99,
+      latRange: p50 != null && p99 != null ? [p50, Math.max(p50, p99)] : null,
       capacity: frame ? round(frame.readyReplicas * capacityRps, 1) : null,
     };
   });
