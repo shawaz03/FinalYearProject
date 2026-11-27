@@ -1,6 +1,32 @@
-# Host-side tooling. Pinned exactly (CLAUDE.md §2 rule 5).
-# The target app has its own pins in apps/target-app/requirements.txt.
+# Pinned exactly (CLAUDE.md §2 rule 5). Bump deliberately, never with a range.
+# Python version fixed in .python-version (3.12).
 
-# Kubernetes control: readiness measurement (T2.3.1) and the arbiter's
-# actuator (T5.3.2).
+# Web / API / Serving (versions aligned with apps/target-app/requirements.txt)
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+prometheus-fastapi-instrumentator==7.0.0
+pydantic==2.14.4
+httpx==0.29.0
+websockets==17.4
+
+# Kubernetes & Telemetry
 kubernetes==37.0.3
+prometheus-api-client==0.7.2
+psycopg==3.3.9
+psycopg-binary==3.3.9
+
+# ML / Forecasting / Statistics
+numpy==2.5.5
+pandas==3.1.1
+pyarrow==26.0.1
+scipy==1.18.1
+scikit-learn==1.9.1
+lightgbm==4.7.0
+MAPIE==1.6.0
+statsmodels==0.15.0
+joblib==1.6.0
+
+# Config / Validation / Testing
+PyYAML==6.0.4
+jsonschema==4.26.0
+pytest==9.2.0

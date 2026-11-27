@@ -465,6 +465,34 @@ while keeping per-pod capacity in a convenient RPS range for local k6 load.
 - Re-running `T2.3.1` readiness (`experiments/measure_readiness.py`) and
   measuring `C` (`T2.2`) against the `250m` CPU limit.
 
+### Phase 0 — Environment pinning, task runner, seeds & manifest contract (`T0.2`, `T0.3`)
+
+**Environment.** Created `.venv` using Python `3.12.4` (`py -3.12`, matching
+`.python-version`) and pinned all 22 direct dependencies with `==` in
+`requirements.txt` (including `MAPIE==1.6.0`, `lightgbm==4.7.0`,
+`scikit-learn==1.9.1`, `fastapi==0.115.6`, `kubernetes==37.0.3`,
+`prometheus-api-client==0.7.2`). Note: MAPIE 1.6.0 exposes
+`ConformalizedQuantileRegressor` (v1 API, matching the `CLAUDE.md §3.7` pin note).
+
+**Artifacts added:**
+- `requirements.txt` — pinned Python stack (`==`)
+- `Makefile` + `scripts/cpctl.py` — cross-platform runner supporting all
+  targets natively on Windows (where GNU `make` is absent) and Linux/WSL2
+- `cloudpulse_core/__init__.py`, `seeds.py`, `config.py` — shared determinism
+  helpers (`PYTHONHASHSEED`, `random`, `numpy`, LightGBM determinism kwargs) and
+  YAML config loaders
+- `experiments/manifest.schema.json`, `experiments/manifest.example.json`,
+  `experiments/manifest.py` — JSON Schema + ISO-8601 datetime and bounds validation
+- `tests/test_seeds.py`, `tests/test_manifest.py`, `tests/test_cpctl.py`
+
+**Checks run:**
+- `pip check` and `import mapie, lightgbm` verified in `.venv`
+- `scripts/cpctl.py setup` and `scripts/cpctl.py test` passed (`pytest` green)
+
+**Not done on this laptop:** running `make help`/`make setup` via GNU `make`
+(absent on Windows; `scripts/cpctl.py` backs every target) and verifying
+`seeds.py` inside `ml/train.py` (created in Phase 4).
+
 ### Next actions
 
 | Member | Next | Blocked by |

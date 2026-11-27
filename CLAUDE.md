@@ -314,24 +314,38 @@ real dates in §8 once the submission deadline is fixed.
       half of this check is only exercisable from Phase 4 — re-verify there.
 
 **T0.2 Environment pinning**
-- [ ] 0.2.1 `requirements.txt` with `==` pins for every Python dependency;
+- [x] 0.2.1 `requirements.txt` with `==` pins for every Python dependency;
       Python version fixed in `.python-version`.
       *Done when:* a fresh venv installs and `python -c "import mapie, lightgbm"` succeeds.
-- [ ] 0.2.2 `Makefile` targets: `setup cluster-up deploy collect train serve
+      → `.venv` created on Python `3.12.4`, `requirements.txt` pinned (`MAPIE==1.6.0`,
+      `lightgbm==4.7.0`, `fastapi==0.115.6`, `kubernetes==37.0.3`, etc.), and
+      `import mapie, lightgbm` verified.
+- [~] 0.2.2 `Makefile` targets: `setup cluster-up deploy collect train serve
       bench analyse clean`.
       *Done when:* `make help` lists all targets and `make setup` completes.
-- [ ] 0.2.3 Global seed utility in `cloudpulse_core/seeds.py`.
+      → `Makefile` and Windows-compatible `scripts/cpctl.py` implemented and
+      verified via `cpctl.py help`, `cpctl.py setup`, `cpctl.py test`, and
+      `tests/test_cpctl.py`. GNU `make` itself is not installed on the 7.9 GB
+      Windows laptop; verify `make help` on a machine with `make`.
+- [~] 0.2.3 Global seed utility in `cloudpulse_core/seeds.py`.
       *Done when:* two runs of the training script produce byte-identical models.
+      → `cloudpulse_core/seeds.py` implemented; `tests/test_seeds.py` verifies
+      byte-identical LightGBM quantile models across two runs. Re-verify on
+      `ml/train.py` in Phase 4 (`T4.2`).
 
 **T0.3 Experiment manifest contract**
-- [ ] 0.3.1 Define the `experiments/results/<run_id>/manifest.json` schema: git
+- [x] 0.3.1 Define the `experiments/results/<run_id>/manifest.json` schema: git
       SHA, scaler under test, traffic profile, `WARMUP_SECONDS`, seed,
       start/end time, cluster resources.
       *Done when:* the schema file is committed with one hand-written example
       that validates against it.
+      → `experiments/manifest.schema.json`, `experiments/manifest.example.json`,
+      and `experiments/manifest.py` implemented and verified by `tests/test_manifest.py`.
 
-> **EXIT GATE 0:** `[ ]` Fresh clone → `make setup` works; structure matches
-> §3.8; manifest schema committed.
+> **EXIT GATE 0:** `[~]` Fresh `.venv` setup (`scripts/cpctl.py setup`), shared
+> `cloudpulse_core` seeds/config, and manifest schema all pass locally; only
+> running `make` directly (Windows laptop lacks GNU `make`) and testing
+> `seeds.py` inside `ml/train.py` (Phase 4) remain.
 
 ---
 
@@ -717,7 +731,7 @@ Updated 2026-11-27.
 
 | Phase | Status |
 |---|---|
-| 0 — Repo & reproducibility | `[~]` T0.1 done; T0.2 (pins, Makefile, seeds) and T0.3 (manifest schema) outstanding |
+| 0 — Repo & reproducibility | `[~]` T0.1, T0.2.1, T0.3.1 done; T0.2.2 (`cpctl.py` verified, `make` pending on Linux/WSL) & T0.2.3 (`seeds.py` verified on LightGBM, re-check on `ml/train.py`) |
 | 1 — Cluster & observability | `[~]` T1.1 & T1.3 done; T1.2.2 & T1.4.1 updated to `250m`/`128Mi` Guaranteed QoS (re-verify on cluster); exit gate awaits T2.1 |
 | 2–8 | `[ ]` not started (T2.3.1 preliminary harness/data recorded; re-run at `250m`/`128Mi` on cluster) |
 

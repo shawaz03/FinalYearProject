@@ -1,0 +1,177 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cloudpulse.local/schemas/manifest.schema.json",
+  "title": "CloudPulse Experiment Run Manifest",
+  "description": "Metadata contract for every committed run under experiments/results/<run_id>/manifest.json (Phase 0, T0.3.1).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "run_id",
+    "git_sha",
+    "git_dirty",
+    "scaler",
+    "profile",
+    "warmup_seconds",
+    "work_iterations",
+    "seed",
+    "repetition",
+    "start_time_utc",
+    "end_time_utc",
+    "cluster_resources"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0.0"
+    },
+    "run_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]+$"
+    },
+    "git_sha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{7,40}$"
+    },
+    "git_dirty": {
+      "type": "boolean"
+    },
+    "scaler": {
+      "type": "string",
+      "enum": [
+        "cloudpulse",
+        "hpa-default",
+        "hpa-tuned",
+        "static",
+        "naive-predictive",
+        "oracle"
+      ]
+    },
+    "profile": {
+      "type": "string",
+      "enum": [
+        "gradual",
+        "flash",
+        "diurnal",
+        "saturation",
+        "readiness"
+      ]
+    },
+    "warmup_seconds": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "work_iterations": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "seed": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "repetition": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "start_time_utc": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "end_time_utc": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "cluster_resources": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "runtime",
+        "node_allocatable_cpu_cores",
+        "node_allocatable_memory_gib",
+        "pod_cpu_request",
+        "pod_cpu_limit",
+        "pod_memory_request",
+        "pod_memory_limit",
+        "min_pods",
+        "max_pods"
+      ],
+      "properties": {
+        "runtime": {
+          "type": "string",
+          "minLength": 1
+        },
+        "node_allocatable_cpu_cores": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "node_allocatable_memory_gib": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "pod_cpu_request": {
+          "type": "string",
+          "pattern": "^[0-9]+m?$"
+        },
+        "pod_cpu_limit": {
+          "type": "string",
+          "pattern": "^[0-9]+m?$"
+        },
+        "pod_memory_request": {
+          "type": "string",
+          "pattern": "^[0-9]+(Mi|Gi)$"
+        },
+        "pod_memory_limit": {
+          "type": "string",
+          "pattern": "^[0-9]+(Mi|Gi)$"
+        },
+        "min_pods": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_pods": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "parameters": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "capacity_rps": {
+          "type": ["number", "null"],
+          "exclusiveMinimum": 0
+        },
+        "horizon_s": {
+          "type": ["integer", "null"],
+          "minimum": 1
+        },
+        "slo_ms": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "ablation": {
+          "type": ["string", "null"]
+        }
+      }
+    },
+    "artifacts": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "k6_summary": {
+          "type": "string"
+        },
+        "decisions": {
+          "type": "string"
+        },
+        "telemetry": {
+          "type": "string"
+        }
+      }
+    },
+    "notes": {
+      "type": "string"
+    }
+  }
+}

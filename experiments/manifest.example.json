@@ -1,0 +1,37 @@
+{
+  "schema_version": "1.0.0",
+  "run_id": "example-cloudpulse-flash-w30-s42-r1",
+  "git_sha": "823420f",
+  "git_dirty": false,
+  "scaler": "cloudpulse",
+  "profile": "flash",
+  "warmup_seconds": 30,
+  "work_iterations": 15000,
+  "seed": 42,
+  "repetition": 1,
+  "start_time_utc": "2026-11-27T10:00:00Z",
+  "end_time_utc": "2026-11-27T10:15:00Z",
+  "cluster_resources": {
+    "runtime": "k3d-v5.9.0-k3s-v1.35.5",
+    "node_allocatable_cpu_cores": 8,
+    "node_allocatable_memory_gib": 5.79,
+    "pod_cpu_request": "250m",
+    "pod_cpu_limit": "250m",
+    "pod_memory_request": "128Mi",
+    "pod_memory_limit": "128Mi",
+    "min_pods": 2,
+    "max_pods": 15
+  },
+  "parameters": {
+    "capacity_rps": null,
+    "horizon_s": null,
+    "slo_ms": 100.0,
+    "ablation": null
+  },
+  "artifacts": {
+    "k6_summary": "k6_summary.json",
+    "decisions": "decisions.jsonl",
+    "telemetry": "telemetry.parquet"
+  },
+  "notes": "Schema validation example only (T0.3.1); not a measured experiment run."
+}
