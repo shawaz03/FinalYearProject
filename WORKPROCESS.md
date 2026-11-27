@@ -581,9 +581,31 @@ isolation, and `>= H` chronological leakage enforcement).
 are generated automatically once `>= 6 h` real telemetry (`T3.2.1`) exists; zero
 synthetic numbers were committed to `analysis/`.
 
+### Phase 5 Decision Arbiter & Control Plane (`T5.1`–`T5.5`, built & verified step-by-step)
+
+**Artifacts added under `services/arbiter/`:**
+- **Step 5.1 (`capacity.py`):** `ceil(D_upper / C)` conversion with `1e-9` float guard,
+  `> 85%` CPU reactive target, `[MIN_PODS, MAX_PODS]` clamp, and strict Phase 2 YAML loaders.
+- **Step 5.2 (`controller.py`):** `ArbiterController` implementing immediate scale-up,
+  300 s scale-down max-window, 60 s dwell, `<1` / `<10%` deadband, emergency reactive
+  override, and `DecisionRecord.to_ws_dict()` matching `dashboard/src/lib/telemetry.ts`.
+  *(Caught a subtle logic bug during testing: `max(predictive_target, current_replicas)`
+  blocked scale-downs whenever CPU <= 85%; fixed to use `predictive_target` unless the
+  reactive guard triggers.)*
+- **Step 5.3 (`actuator.py`):** `KubernetesScaleActuator` wrapping
+  `patch_namespaced_deployment_scale` with exponential retry/backoff on transient
+  `408/409/429/5xx` errors and fail-fast on non-retryable `403/404`.
+- **Step 5.4 (`decision_log.py`, `loop.py`):** JSONL + Postgres `arbiter_decisions`
+  audit logging with `reconstruct_replica_timeline`, plus `ArbiterLoop` enforcing a
+  2 s `/predict` timeout, `> 2`-interval stale rejection, `mode="degraded"` fallback,
+  dwell rollback on failed K8s patches, and automatic recovery.
+
+**Tests added:** `tests/test_arbiter_capacity.py`, `tests/test_arbiter_controller.py`,
+`tests/test_arbiter_actuator.py`, `tests/test_arbiter_loop.py`.
+
 ### Next actions
 
 | Step | Where | Action |
 |---|---|---|
 | Cluster sync | 15.6 GB laptop | Pull, apply `deploy/k8s/`, verify `MAX_PODS`, run `T2.1`–`T2.3` + `T3.2.1` (`>= 6 h` collection) |
-| Phase 5 / 6.1 | This laptop (7.9 GB) | Implement `services/arbiter/` control plane + unit tests, or audit `dashboard/` UI |
+| Phase 6.1 | This laptop (7.9 GB) | Audit `dashboard/` UI (`npm run dev`, `npm run build`, visual inspection) and wire WebSocket `T6.1`–`T6.2` |

@@ -600,41 +600,58 @@ real dates in §8 once the submission deadline is fixed.
 **Resolves:** D2, D6, D15.
 
 **T5.1 Capacity-based conversion**
-- [ ] 5.1.1 Implement `replicas = ceil(D_upper / C)` using the Phase-2 constant (§3.2).
+- [x] 5.1.1 Implement `replicas = ceil(D_upper / C)` using the Phase-2 constant (§3.2).
       *Done when:* unit tests cover the worked examples in §3.2, including the
       case the old formula got wrong.
+      → Implemented in `services/arbiter/capacity.py` and verified against the
+      superseded `ceil(92/70)=2` / `ceil(100/60)=2` failure cases in
+      `tests/test_arbiter_capacity.py`.
 
 **T5.2 Control layer**
-- [ ] 5.2.1 Reactive guard: per-pod CPU > 85% → `current + 2`.
+- [x] 5.2.1 Reactive guard: per-pod CPU > 85% → `current + 2`.
       *Done when:* a synthetic unpredicted spike triggers it within one interval.
-- [ ] 5.2.2 Scale-down stabilisation (300 s max-window), min dwell 60 s,
+      → Verified in `tests/test_arbiter_capacity.py` & `tests/test_arbiter_controller.py`.
+- [x] 5.2.2 Scale-down stabilisation (300 s max-window), min dwell 60 s,
       deadband (§3.5).
       *Done when:* replaying a noisy prediction trace produces ≤ 1 actuation per
       5 minutes during steady load, verified by test.
-- [ ] 5.2.3 Clamp to `[MIN_PODS, MAX_PODS]` from `deploy/limits.md`.
+      → `ArbiterController` (`services/arbiter/controller.py`) verified on
+      noisy steady-state traces and 300 s post-spike unwind in
+      `tests/test_arbiter_controller.py`.
+- [x] 5.2.3 Clamp to `[MIN_PODS, MAX_PODS]` from `deploy/limits.md`.
       *Done when:* the arbiter never requests an unschedulable count.
+      → `clamp_replicas` + `parse_max_pods_from_limits_md` verified in
+      `tests/test_arbiter_capacity.py` & `tests/test_arbiter_controller.py`.
 
 **T5.3 Actuator and RBAC**
 - [~] 5.3.1 ServiceAccount + Role for `deployments/scale` (get, patch) only.
       *Done when:* the pod scales the Deployment with no cluster-admin binding.
       → `deploy/k8s/30-actuator-rbac.yaml` written and validated server-side.
-      Namespaced Role, not ClusterRole. Stays `[~]` until an arbiter actually
-      scales with it (T5.3.2).
-- [ ] 5.3.2 `patch_namespaced_deployment_scale` with retry and backoff.
+      Namespaced Role, not ClusterRole. Stays `[~]` until live cluster run.
+- [~] 5.3.2 `patch_namespaced_deployment_scale` with retry and backoff.
       *Done when:* an induced API failure retries and logs, without crashing.
+      → `KubernetesScaleActuator` (`services/arbiter/actuator.py`) implements
+      exponential backoff + logging, verified with mocked `ApiException` in
+      `tests/test_arbiter_actuator.py`; live cluster verification pending.
 
 **T5.4 Degradation modes**
-- [ ] 5.4.1 Forecaster timeout > 2 s, or a prediction older than 2 intervals →
+- [~] 5.4.1 Forecaster timeout > 2 s, or a prediction older than 2 intervals →
       reactive-only, logged with reason.
       *Done when:* killing the forecaster pod leaves the arbiter running and
       reactively scaling, and recovery is automatic.
+      → `ArbiterLoop` + `HttpForecasterClient` (`services/arbiter/loop.py`)
+      verified offline in `tests/test_arbiter_loop.py` (simulated outage,
+      2 s timeout, stale rejection, and auto-recovery); live cluster check pending.
 
 **T5.5 Decision logging**
-- [ ] 5.5.1 Persist every decision (inputs, bounds, chosen replicas, mode, reason).
+- [x] 5.5.1 Persist every decision (inputs, bounds, chosen replicas, mode, reason).
       *Done when:* a run's decision log reconstructs the replica timeline exactly.
+      → `DecisionLogger` & `reconstruct_replica_timeline` (`services/arbiter/decision_log.py`)
+      verified in `tests/test_arbiter_loop.py` (JSONL + Postgres schema).
 
-> **EXIT GATE 5:** `[ ]` A `flash` profile run scales pods up **before** the RPS
-> peak, with no oscillation during steady state and no manual intervention.
+> **EXIT GATE 5:** `[~]` Complete `services/arbiter/` control loop, actuator,
+> degradation, and decision logging pass offline `pytest` verification; live
+> `flash` cluster run closes the gate after Phase 2/4 artifacts land.
 
 ---
 
@@ -787,7 +804,8 @@ Updated 2026-11-27.
 | 2 — Capacity & load harness | `[~]` T2.1/T2.2/T2.3 scripts, profiles, and unit tests complete; live cluster measurements (`C`, 20-cycle readiness, `H`) pending on 15.6 GB cluster laptop |
 | 3 — Dataset & feature pipeline | `[~]` T3.2.2, T3.3.1, T3.3.2 done (`collector/`, `features.py`, `prepare_dataset.py` unit-tested); live `>= 6 h` telemetry collection (`T3.1`/`T3.2.1`) pending on cluster laptop |
 | 4 — Forecasting & uncertainty | `[~]` Baselines, LightGBM CQR, ACI (`cloudpulse_core/aci.py`), ablation, FastAPI `/predict` (`p99 < 200 ms`), and Dockerfile complete & unit-tested; final fit/metrics await `T3.2.1` telemetry |
-| 5–8 | `[ ]` not started |
+| 5 — Decision & control plane | `[~]` `services/arbiter/` (`capacity.py`, `controller.py`, `actuator.py`, `decision_log.py`, `loop.py`) complete & verified with offline `pytest` suite; live `flash` cluster test awaits Phase 2/4 artifacts |
+| 6–8 | `[ ]` not started |
 
 Live: k3d cluster `cloudpulse`, target-app 3/3 Ready, Prometheus scraping at 5 s.
 Whole cluster footprint 785 Mi. Measured constants so far are in
