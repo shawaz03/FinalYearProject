@@ -327,11 +327,11 @@ real dates in §8 once the submission deadline is fixed.
       verified via `cpctl.py help`, `cpctl.py setup`, `cpctl.py test`, and
       `tests/test_cpctl.py`. GNU `make` itself is not installed on the 7.9 GB
       Windows laptop; verify `make help` on a machine with `make`.
-- [~] 0.2.3 Global seed utility in `cloudpulse_core/seeds.py`.
+- [x] 0.2.3 Global seed utility in `cloudpulse_core/seeds.py`.
       *Done when:* two runs of the training script produce byte-identical models.
-      → `cloudpulse_core/seeds.py` implemented; `tests/test_seeds.py` verifies
-      byte-identical LightGBM quantile models across two runs. Re-verify on
-      `ml/train.py` in Phase 4 (`T4.2`).
+      → `cloudpulse_core/seeds.py` implemented; `tests/test_seeds.py` and
+      `tests/test_forecaster_pipeline.py` (`test_training_produces_byte_identical_models`)
+      verify byte-identical `ml/train.py` CQR+LightGBM `.joblib` bundles across runs.
 
 **T0.3 Experiment manifest contract**
 - [x] 0.3.1 Define the `experiments/results/<run_id>/manifest.json` schema: git
@@ -536,40 +536,60 @@ real dates in §8 once the submission deadline is fixed.
 **Depends on:** Phase 3. **Owner:** M1, reviewed by M4. **Resolves:** D3, D7, D8.
 
 **T4.1 Baselines first**
-- [ ] 4.1.1 Implement naive (last value), seasonal naive and ARIMA baselines.
+- [~] 4.1.1 Implement naive (last value), seasonal naive and ARIMA baselines.
       *Done when:* `analysis/baselines.md` reports RMSE/MAE/SMAPE on the test
       split. These are also the ablation opponents in Phase 7 — do not skip them.
+      → `ml/baselines.py` + `ml/evaluate.py` implemented and verified on synthetic
+      data; run `ml/evaluate.py` to generate final `analysis/baselines.md` once
+      real telemetry Parquet is collected (`T3.2.1`).
 
 **T4.2 Quantile base learner**
-- [ ] 4.2.1 LightGBM/GBR quantile models at `tau = 0.05/0.50/0.95`.
+- [~] 4.2.1 LightGBM/GBR quantile models at `tau = 0.05/0.50/0.95`.
       *Done when:* the median model beats the best Phase-4.1 baseline on test
       RMSE, with the margin recorded.
+      → `ml/train.py` implements deterministic LightGBM quantile models and
+      beats baselines in `tests/test_forecaster_pipeline.py`; final real-data
+      margin pending `T3.2.1`.
 
 **T4.3 Conformalisation**
-- [ ] 4.3.1 CQR on the calibration split via pinned MAPIE.
+- [~] 4.3.1 CQR on the calibration split via pinned MAPIE.
       *Done when:* marginal coverage on test lands within [0.88, 0.95] at `alpha=0.10`.
-- [ ] 4.3.2 Add the Adaptive Conformal Inference online update (§3.4).
+      → Implemented using `MAPIE==1.6.0` `ConformalizedQuantileRegressor(..., prefit=True)`
+      with explicit `[lower, upper, median]` ordering; verified on synthetic split.
+- [~] 4.3.2 Add the Adaptive Conformal Inference online update (§3.4).
       *Done when:* under an injected distribution shift, ACI recovers to target
       coverage within 20 steps while static CQR does not — plot committed.
-- [ ] 4.3.3 **Conditional coverage during spike windows.**
+      → `cloudpulse_core/aci.py` + `ml/evaluate.py` SVG plotter verified on
+      synthetic shift (`<= 20` step recovery in `tests/test_aci.py` &
+      `tests/test_forecaster_pipeline.py`); final plot pending real data.
+- [~] 4.3.3 **Conditional coverage during spike windows.**
       *Done when:* `analysis/coverage.md` reports coverage restricted to the top
       10% of `dD/dt` windows, separately from marginal coverage.
+      → `spike_window_mask` and `analysis/coverage.md` generator verified on
+      synthetic data; final report pending `T3.2.1`.
 
 **T4.4 Asymmetry, measured not assumed**
-- [ ] 4.4.1 Train an asymmetric-loss variant; compare interval width and
+- [~] 4.4.1 Train an asymmetric-loss variant; compare interval width and
       over-provisioning against plain CQR (§3.4, D8).
       *Done when:* a table shows mean interval width and pod-seconds cost for
       both, and `config.yaml` records which one ships and why.
+      → `asymmetric_3_1` vs `plain_cqr` ablation implemented in `ml/train.py` &
+      `ml/evaluate.py`; final `services/forecaster/config.yaml` pending real data.
 
 **T4.5 Serving**
-- [ ] 4.5.1 FastAPI `/predict` returning
+- [~] 4.5.1 FastAPI `/predict` returning
       `{point, lower, upper, horizon_s, model_version, computed_at}`.
       *Done when:* p99 service latency < 200 ms over 1000 calls.
-- [ ] 4.5.2 Containerise and deploy into the cluster.
+      → `services/forecaster/app.py` implemented and verified over 1,000
+      `TestClient` calls (`p99 < 200 ms`) in `tests/test_forecaster_api.py`.
+- [~] 4.5.2 Containerise and deploy into the cluster.
       *Done when:* the arbiter can reach it by Service DNS.
+      → `services/forecaster/Dockerfile` & pinned `requirements.txt` authored
+      (`libgomp1`, non-root uid 10001, `--workers 1`); cluster deploy pending.
 
-> **EXIT GATE 4:** `[ ]` The deployed `/predict` meets coverage targets both
-> marginally and conditionally, and beats the naive baseline measurably.
+> **EXIT GATE 4:** `[~]` Complete Phase 4 ML, ACI, evaluation, and `/predict`
+> pipeline verified on deterministic synthetic workloads and 1,000-call latency
+> test; closes after training/evaluating on live cluster Parquet (`T3.2.1`).
 
 ---
 
@@ -762,11 +782,12 @@ Updated 2026-11-27.
 
 | Phase | Status |
 |---|---|
-| 0 — Repo & reproducibility | `[~]` T0.1, T0.2.1, T0.3.1 done; T0.2.2 (`cpctl.py` verified, `make` pending on Linux/WSL) & T0.2.3 (`seeds.py` verified on LightGBM, re-check on `ml/train.py`) |
+| 0 — Repo & reproducibility | `[~]` T0.1, T0.2.1, T0.2.3, T0.3.1 done; T0.2.2 (`cpctl.py` verified, `make` pending on Linux/WSL) |
 | 1 — Cluster & observability | `[~]` T1.1 & T1.3 done (`21-prometheus-config.yaml` updated to retain quota/period); T1.2.2 & T1.4.1 updated to `250m`/`128Mi` Guaranteed QoS (re-verify on cluster); exit gate awaits T2.1 |
 | 2 — Capacity & load harness | `[~]` T2.1/T2.2/T2.3 scripts, profiles, and unit tests complete; live cluster measurements (`C`, 20-cycle readiness, `H`) pending on 15.6 GB cluster laptop |
 | 3 — Dataset & feature pipeline | `[~]` T3.2.2, T3.3.1, T3.3.2 done (`collector/`, `features.py`, `prepare_dataset.py` unit-tested); live `>= 6 h` telemetry collection (`T3.1`/`T3.2.1`) pending on cluster laptop |
-| 4–8 | `[ ]` not started |
+| 4 — Forecasting & uncertainty | `[~]` Baselines, LightGBM CQR, ACI (`cloudpulse_core/aci.py`), ablation, FastAPI `/predict` (`p99 < 200 ms`), and Dockerfile complete & unit-tested; final fit/metrics await `T3.2.1` telemetry |
+| 5–8 | `[ ]` not started |
 
 Live: k3d cluster `cloudpulse`, target-app 3/3 Ready, Prometheus scraping at 5 s.
 Whole cluster footprint 785 Mi. Measured constants so far are in

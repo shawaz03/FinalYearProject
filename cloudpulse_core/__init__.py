@@ -1,5 +1,10 @@
 """Shared CloudPulse core package imported by both offline ML and live services."""
 
+from cloudpulse_core.aci import (
+    AdaptiveConformalPredictor,
+    cqr_conformity_score,
+    finite_sample_conformal_quantile,
+)
 from cloudpulse_core.config import (
     DEADBAND_RATIO,
     DECISION_INTERVAL_S,
@@ -30,6 +35,7 @@ from cloudpulse_core.seeds import (
 )
 
 __all__ = [
+    "AdaptiveConformalPredictor",
     "DEADBAND_RATIO",
     "DECISION_INTERVAL_S",
     "DEFAULT_MAX_PODS",

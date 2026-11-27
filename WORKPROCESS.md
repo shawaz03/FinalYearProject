@@ -548,9 +548,42 @@ Changed to `kind="mergesort"` in `services/collector/collector.py`.
 including 30-min grid reconciliation, strict feature causality, cross-run
 isolation, and `>= H` chronological leakage enforcement).
 
+### Phase 4 ML & `/predict` engineering (`T4.1`–`T4.5`, offline code & tests)
+
+**API findings verified in `.venv` (`MAPIE==1.6.0` + `LightGBM==4.7.0`):**
+- `ConformalizedQuantileRegressor(..., prefit=False)` rejects `LGBMRegressor`
+  because `LGBMRegressor.get_params()` does not list `alpha`. Passing three
+  pre-fitted deterministic quantile models with `prefit=True` in exact
+  `[lower, upper, median]` order resolves this and enforces `seeds.py` params.
+- `scikit-learn` warned on feature-name mismatch because MAPIE converts inputs
+  to NumPy internally. Passing explicit `df[list(FEATURE_COLUMNS)].to_numpy(dtype=np.float64)`
+  in both `ml/train.py` and `services/forecaster/app.py` removes the warning.
+- `ml/train.py` excludes wall-clock timestamps from `forecaster_bundle.joblib`
+  (writing timestamps only to `.meta.json`), so consecutive training runs with
+  the same seed produce **byte-identical `.joblib` files** (`T0.2.3`).
+
+**Artifacts added:**
+- `cloudpulse_core/aci.py` — online Adaptive Conformal Inference (`alpha_{t+1} =
+  clip(alpha_t + gamma * (alpha - err_t))`) over sliding conformity scores
+- `ml/baselines.py` — naive, seasonal naive (`rps_lag_60`), and ARIMA baselines
+- `ml/train.py` — deterministic LightGBM quantile trainer + MAPIE CQR wrapper
+  (`plain_cqr` and `asymmetric_3_1` variants)
+- `ml/evaluate.py` — baselines table, marginal + top-10% `|dD/dt|` spike-window
+  conditional coverage, ACI shift recovery simulation + SVG plot, and
+  asymmetry ablation comparison
+- `services/forecaster/` — FastAPI `POST /predict`, `POST /feedback`,
+  `GET /healthz`, pinned `requirements.txt`, and multi-stage `Dockerfile`
+  (`libgomp1`, non-root uid 10001, `--workers 1` for ACI state)
+- `tests/test_aci.py`, `tests/test_forecaster_pipeline.py`, `tests/test_forecaster_api.py`
+
+**Not done yet (requires live cluster data):** final training/evaluation reports
+(`analysis/baselines.md`, `analysis/coverage.md`, `services/forecaster/config.yaml`)
+are generated automatically once `>= 6 h` real telemetry (`T3.2.1`) exists; zero
+synthetic numbers were committed to `analysis/`.
+
 ### Next actions
 
 | Step | Where | Action |
 |---|---|---|
-| Cluster sync | 15.6 GB laptop | Pull, apply `deploy/k8s/`, verify `MAX_PODS`, run `T2.1`–`T2.3` + `T3.2.1` (`>= 6 h` collection) and push |
-| Phase 5 / 6.1 | This laptop (7.9 GB) | Audit `dashboard/` UI (`npm run dev`), or implement Phase 5 `services/arbiter/` control logic + mocked tests |
+| Cluster sync | 15.6 GB laptop | Pull, apply `deploy/k8s/`, verify `MAX_PODS`, run `T2.1`–`T2.3` + `T3.2.1` (`>= 6 h` collection) |
+| Phase 5 / 6.1 | This laptop (7.9 GB) | Implement `services/arbiter/` control plane + unit tests, or audit `dashboard/` UI |
