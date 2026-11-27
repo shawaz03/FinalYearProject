@@ -714,11 +714,12 @@ real dates in §8 once the submission deadline is fixed.
 **Resolves:** D1, D11, D12, D14.
 
 **T7.1 Experiment runner**
-- [ ] 7.1.1 `experiments/run.py` taking (scaler, profile, warmup, seed, rep),
+- [~] 7.1.1 `experiments/run.py` taking (scaler, profile, warmup, seed, rep),
       enforcing a clean cluster and a fixed settle period between runs, and
-      writing the Phase-0 manifest.
+      writing the Phase-0 manifest (code + unit tests complete; live cluster pending).
       *Done when:* a run is fully reproducible from its manifest alone.
-- [ ] 7.1.2 **Sequential execution only** — assert no other scaler is active.
+- [~] 7.1.2 **Sequential execution only** — assert no other scaler is active
+      (`find_competing_hpas` + `.runner.lock` unit-tested; live cluster pending).
       *Done when:* the runner refuses to start if an HPA exists on the target.
 
 **T7.2 Tuned baselines (resolves D11)**
@@ -727,36 +728,36 @@ real dates in §8 once the submission deadline is fixed.
       → `deploy/baselines/hpa-tuned.yaml`: CPU 50%, instant scale-up, +100%/+4
       pods per 15 s, scale-down window matched to ours so neither side gets an
       unfair edge on pod-seconds.
-- [ ] 7.2.3 Static over-provisioned, sized from Phase-2 capacity to peak demand.
-- [ ] 7.2.4 Naive predictive scaler (last value + margin) — isolates the value of ML.
-- [ ] 7.2.5 Oracle scaler fed the true future demand — the upper bound on any predictor.
+- [~] 7.2.3 Static over-provisioned, sized from Phase-2 capacity to peak demand (`experiments/scalers.py` + tests done; live runs pending).
+- [~] 7.2.4 Naive predictive scaler (last value + margin) — isolates the value of ML (`experiments/scalers.py` + tests done; live runs pending).
+- [~] 7.2.5 Oracle scaler fed the true future demand — the upper bound on any predictor (`experiments/scalers.py` + tests done; live runs pending).
       *Done when:* all five configurations run under all three profiles.
 
 **T7.3 Ablations**
-- [ ] 7.3.1 Point forecast vs conformal upper bound — does uncertainty pay?
-- [ ] 7.3.2 Asymmetric loss on vs off (§3.4).
-- [ ] 7.3.3 ACI on vs static conformal, under drift.
+- [~] 7.3.1 Point forecast vs conformal upper bound — does uncertainty pay? (`AblationForecasterWrapper` implemented & tested; live runs pending).
+- [~] 7.3.2 Asymmetric loss on vs off (§3.4) (`KubernetesClusterDriver` `asymmetric-on` wired to `ml/train.py` variant; live runs pending).
+- [~] 7.3.3 ACI on vs static conformal, under drift (`AblationForecasterWrapper` implemented & tested; live runs pending).
       *Done when:* each ablation reports SLA violation % and pod-seconds.
 
 **T7.4 Startup-latency sweep (the headline, §3.6)**
-- [ ] 7.4.1 Sweep `WARMUP_SECONDS ∈ {0,5,15,30,60}` for CloudPulse vs tuned HPA.
+- [~] 7.4.1 Sweep `WARMUP_SECONDS ∈ {0,5,15,30,60}` for CloudPulse vs tuned HPA (`build_benchmark_matrix` + `analyze_warmup_breakeven` implemented; live runs pending).
       *Done when:* a curve of advantage vs startup cost exists **and the
       break-even point is stated**, including the honest finding that below it
       predictive scaling does not pay.
 
 **T7.5 Statistics (resolves D12)**
-- [ ] 7.5.1 n = 5 repetitions per cell, different seeds. Budget the time:
-      5 scalers × 3 profiles × 5 reps × ~15 min ≈ 19 h of machine time — schedule it.
+- [~] 7.5.1 n = 5 repetitions per cell, different seeds. Budget the time:
+      5 scalers × 3 profiles × 5 reps × ~15 min ≈ 19 h of machine time — schedule it (`build_benchmark_matrix` wired; execution pending).
       *Done when:* every reported cell has n = 5.
-- [ ] 7.5.2 Report median + IQR, not mean alone, for latency.
-- [ ] 7.5.3 Significance testing appropriate to the data: Kruskal–Wallis with
-      Dunn post-hoc (latency is not normal), plus effect sizes and confidence intervals.
+- [~] 7.5.2 Report median + IQR, not mean alone, for latency (`analysis/stats.py::summarize_cells` ready).
+- [~] 7.5.3 Significance testing appropriate to the data: Kruskal–Wallis with
+      Dunn post-hoc (latency is not normal), plus effect sizes and confidence intervals (`analysis/stats.py` & `analysis/stats.ipynb` verified offline).
       *Done when:* `analysis/stats.ipynb` outputs the results table with
       p-values, effect sizes and n stated for each cell.
 
 **T7.6 Primary metrics, fixed now**
-- [ ] 7.6.1 SLA violation rate (% requests > SLO, client-side); p99 latency;
-      **pod-seconds**; actuation count; mean time-to-ready-capacity; coverage.
+- [~] 7.6.1 SLA violation rate (% requests > SLO, client-side); p99 latency;
+      **pod-seconds**; actuation count; mean time-to-ready-capacity; coverage (`analysis/metrics.py` verified on fixtures; live `analysis/results.csv` awaits runs).
       *Done when:* `analysis/metrics.py` computes all six from a run directory.
 
 > **EXIT GATE 7:** `[ ]` Every number in `analysis/results.csv` traces to a
@@ -820,7 +821,7 @@ on `cloudpulse_core/features.py` so ML is not a single point of failure.
 
 ## 8. Current status
 
-Updated 2026-11-27.
+Updated 2026-11-28.
 
 | Phase | Status |
 |---|---|
@@ -830,17 +831,18 @@ Updated 2026-11-27.
 | 3 — Dataset & feature pipeline | `[~]` T3.2.2, T3.3.1, T3.3.2 done (`collector/`, `features.py`, `prepare_dataset.py` unit-tested); live `>= 6 h` telemetry collection (`T3.1`/`T3.2.1`) pending on cluster laptop |
 | 4 — Forecasting & uncertainty | `[~]` Baselines, LightGBM CQR, ACI (`cloudpulse_core/aci.py`), ablation, FastAPI `/predict` (`p99 < 200 ms`), and Dockerfile complete & unit-tested; final fit/metrics await `T3.2.1` telemetry |
 | 5 — Decision & control plane | `[~]` `services/arbiter/` (`capacity.py`, `controller.py`, `actuator.py`, `decision_log.py`, `loop.py`) complete & verified with offline `pytest` suite; live `flash` cluster test awaits Phase 2/4 artifacts |
-| 6 — Closed-loop integration & dashboard | `[~]` `services/arbiter/ws.py` (with live `loop.py --ws-port` bridge), `services/{collector,arbiter}/Dockerfile`, `scripts/demo.py` (`make demo` / `cpctl.py demo`), and `dashboard/` WebSocket UI + cost toggle verified offline (`62` pytest pass, Next.js lint/build pass, Chromium replay audit pass); real cluster `make demo` runs await 15.6 GB cluster laptop |
-| 7–8 | `[ ]` not started |
+| 6 — Closed-loop integration & dashboard | `[~]` `services/arbiter/ws.py`, Dockerfiles, `scripts/demo.py` (`make demo` / `cpctl.py demo`), and `dashboard/` Design A v2 UI (`Geist`, `PodMatrix`, `LatencyPlot`, WS replay, cost toggle) verified offline; real cluster `make demo` runs await 15.6 GB cluster laptop |
+| 7 — Experimental evaluation | `[~]` Offline harness & analysis code complete and unit-tested (`experiments/scalers.py`, `experiments/run.py`, `analysis/metrics.py`, `analysis/stats.py`, `analysis/stats.ipynb`); live sequential benchmark execution (`175` planned runs across baselines, ablations & `WARMUP_SECONDS` sweep) awaits 15.6 GB cluster laptop |
+| 8 — Thesis, paper & viva | `[ ]` Awaits Phase 7 measured `analysis/results.csv` (`sync_readme_benchmark_table` ready once real runs exist) |
 
-Live: k3d cluster `cloudpulse`, target-app 3/3 Ready, Prometheus scraping at 5 s.
-Whole cluster footprint 785 Mi. Measured constants so far are in
-`deploy/limits.md`; canonical queries in `deploy/queries.md`.
+Live cluster status: k3d cluster `cloudpulse` (`MAX_PODS = 15` pending re-verification under `250m`/`128Mi` Guaranteed QoS). Measured constants so far are in `deploy/limits.md`; canonical queries in `deploy/queries.md`.
 
-**Next action:** offline code for Phases 0–6 is complete. On the **7.9 GB dev
-laptop**, proceed next to offline scaffolding in Phase 7 (`T7.1` experiment
-runner & `T7.6` `analysis/metrics.py`); on the **15.6 GB cluster laptop**, run
-Phase 2 (`T2.1`–`T2.3`), Phase 3 (`T3.2.1`), Phase 4 training, and Phases 5–6
-live cluster gates (`make demo` twice in a row).
+**Next action:** ALL offline code for Phases 0–7 is complete and unit-tested.
+Move cleanly to the **15.6 GB cluster laptop** to run:
+1. Phase 2 (`T2.1`–`T2.3` measuring `C`, 20-cycle readiness, and horizon `H`),
+2. Phase 3 (`T3.2.1` collecting `>= 6 h` real telemetry),
+3. Phase 4 training (`ml/train.py` for `plain_cqr` and `asymmetric_3_1`),
+4. Phases 5–6 live validation (`make demo` twice cleanly), and
+5. Phase 7 sequential evaluation (`make bench` -> `make analyse` -> `analysis/stats.py --sync-readme`).
 
 Anchor W1–W16 to real calendar dates here once the submission deadline is known.

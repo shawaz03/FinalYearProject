@@ -635,3 +635,16 @@ synthetic numbers were committed to `analysis/`.
 **Pending on the 15.6 GB cluster laptop to close Exit Gate 6:**
 1. Finish Phase 2 (`T2.1`–`T2.3`), Phase 3 (`>= 6 h` collection), and Phase 4 (`ml/train.py` fitting `ml/models/forecaster_bundle.joblib`).
 2. Run `make demo` (`--mode cluster`) twice consecutively on a clean k3d cluster (and optionally `make demo -- --build-images` to build/import all four images) and verify `wscat` + `dashboard/` live panels match `arbiter_decisions` in PostgreSQL.
+
+### Dashboard Design A v2 + Phase 7 Offline Scaffolding (`T7.1`–`T7.6`)
+
+**Dashboard Design A v2 (committed `53a94ee`):**
+- Rebuilt the Next.js control plane into the Elite Monochrome Studio layout (`Geist` + `Geist_Mono`, pure white studio cards `#ffffff`/`#fafafa` paired with inverted pitch-black command bar & SLA monolith `#09090b`, plus full dark mode toggle).
+- Added `MetricBar` (smooth cubic Bezier sparkline KPI tray), `PodMatrix` (15-slot Kubernetes `RDY`/`WRM`/`IDLE` cluster view), `LatencyPlot` (`p50 -> p99` envelope against `100 ms` SLO), filterable `DecisionLog` + `ArbiterTrailMini`, unclipped `MAX_PODS` threshold label in `ReplicaPlot`, and zero-colour `Data Table`.
+- Verified `npm run lint`, `npm run build` (Next.js 16.4.6), live Chromium desktop/narrow views, and WebSocket replay (`ws://127.0.0.1:8002/ws/stream`).
+
+**Phase 7 Offline Harness, Metrics & Statistics (implemented with strict TDD):**
+- **Step 7.1 (`experiments/scalers.py`, `services/arbiter/loop.py`):** Added `ForecasterProtocol`, `compute_static_replicas`, `NaivePredictiveClient`, `OracleForecasterClient`, `AblationForecasterWrapper` (`point-only`, `static-conformal`, `asymmetric-on`), and `build_forecaster_for_experiment` (`43054a1`).
+- **Step 7.2 (`experiments/run.py`, `tests/test_experiment_runner.py`):** Implemented sequential runner enforcing zero competing HPA on `target-app` (`find_competing_hpas`), exclusive `.runner.lock`, baseline HPA apply/cleanup (`try`/`finally`), fixed settle waits, Phase-0 `manifest.json` generation & `spec_from_manifest` reproduction, and deterministic suite planner (`baselines` 90, `ablations` 45, `warmup-sweep` 50 -> `all` 175 deduplicated runs) wired to `scripts/cpctl.py bench`.
+- **Step 7.3 (`analysis/metrics.py`, `tests/test_analysis_metrics.py`):** Computes all six `T7.6` metrics per `run_id` (`sla_violation_pct`, `p99_latency_ms`, trapezoidal `pod_seconds`, `actuation_count`, `mean_time_to_ready_capacity_s`, `coverage_pct`), skips non-benchmark directories such as `readiness-*`, writes traceable `analysis/results.csv`, and wires cleanly to `scripts/cpctl.py analyse`.
+- **Step 7.4 (`analysis/stats.py`, `analysis/stats.ipynb`, `tests/test_analysis_stats.py`):** Computes per-cell median + IQR with `n` & `run_ids`, Kruskal–Wallis `H`/`epsilon_sq`, tie-corrected Dunn post-hoc (`p_adj`, Holm–Bonferroni), Cliff's delta + seeded bootstrap 95% median-difference CIs, `WARMUP_SECONDS` break-even detection, and guarded README table regeneration (`sync_readme_benchmark_table`, intentionally uninvoked until real cluster runs populate `analysis/results.csv`).
