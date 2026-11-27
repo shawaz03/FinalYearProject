@@ -1,0 +1,24 @@
+{
+  "profile": "diurnal",
+  "description": "Compressed 15-minute bimodal daily wave simulating morning and evening peaks (T2.1.1).",
+  "slo_ms": 100,
+  "time_unit": "1s",
+  "target_path": "/api/work",
+  "segments": [
+    { "name": "night-low", "duration_s": 60, "target_rps": 15 },
+    { "name": "morning-rise-1", "duration_s": 60, "target_rps": 30 },
+    { "name": "morning-rise-2", "duration_s": 60, "target_rps": 60 },
+    { "name": "morning-peak-1", "duration_s": 60, "target_rps": 95 },
+    { "name": "morning-peak-2", "duration_s": 60, "target_rps": 115 },
+    { "name": "midday-ease", "duration_s": 60, "target_rps": 85 },
+    { "name": "midday-lull-1", "duration_s": 60, "target_rps": 50 },
+    { "name": "midday-lull-2", "duration_s": 60, "target_rps": 40 },
+    { "name": "evening-rise", "duration_s": 60, "target_rps": 70 },
+    { "name": "evening-peak-1", "duration_s": 60, "target_rps": 105 },
+    { "name": "evening-peak-2", "duration_s": 60, "target_rps": 125 },
+    { "name": "evening-ease-1", "duration_s": 60, "target_rps": 90 },
+    { "name": "evening-ease-2", "duration_s": 60, "target_rps": 55 },
+    { "name": "late-drop", "duration_s": 60, "target_rps": 30 },
+    { "name": "night-return", "duration_s": 60, "target_rps": 15 }
+  ]
+}

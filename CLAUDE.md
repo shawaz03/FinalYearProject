@@ -434,29 +434,46 @@ real dates in §8 once the submission deadline is fixed.
 **Depends on:** Phase 1. **Owner:** M3 + M2. **Resolves:** D4, D9, D10.
 
 **T2.1 Open-loop load generator**
-- [ ] 2.1.1 k6 scripts with the `constant-arrival-rate` executor for three
+- [~] 2.1.1 k6 scripts with the `constant-arrival-rate` executor for three
       profiles: `gradual`, `flash`, `diurnal`; the RPS schedule declared in
       config, not code.
       *Done when:* achieved RPS tracks target RPS within 5% while the app is healthy.
-- [ ] 2.1.2 Emit per-request client-side latency to a JSON summary per run.
+      → `load/k6_runner.js` and `load/profiles/{gradual,flash,diurnal}.json`
+      authored and schema-tested (`tests/test_load_profiles.py`); live k6
+      tracking run pending on the 15.6 GB cluster laptop.
+- [~] 2.1.2 Emit per-request client-side latency to a JSON summary per run.
       *Done when:* `experiments/results/<id>/k6_summary.json` carries p50/p90/p99.
+      → `load/k6_runner.js` configures explicit `summaryTrendStats` (`p(50)`,
+      `p(90)`, `p(99)`) and `sla_violations`, validated by `experiments/k6_summary.py`;
+      live run output pending on the cluster laptop.
 
 **T2.2 Saturation test → capacity constant C**
-- [ ] 2.2.1 Pin the Deployment to exactly 1 replica; step RPS upward until
+- [~] 2.2.1 Pin the Deployment to exactly 1 replica; step RPS upward until
       per-pod CPU reaches 70% with p99 still inside the SLO.
       *Done when:* `deploy/capacity.yaml` records `pod_capacity_rps`, with the
       raw curve committed under `experiments/results/`.
-- [ ] 2.2.2 Repeat at 3 replicas to confirm near-linear scaling.
+      → `experiments/measure_capacity.py` implemented and unit-tested
+      (`tests/test_capacity_and_horizon.py`); also fixed `21-prometheus-config.yaml`
+      to keep `container_spec_cpu_quota`/`period` for query #3. Live run pending.
+- [~] 2.2.2 Repeat at 3 replicas to confirm near-linear scaling.
       *Done when:* measured 3-pod capacity is within 15% of `3 * C`; if not,
       document the bottleneck (Service / kube-proxy / node) before proceeding.
+      → 3-pod linearity verification (`check_linearity`) implemented in
+      `experiments/measure_capacity.py`; live run pending on cluster laptop.
 
 **T2.3 Pod readiness characterisation → horizon H**
-- [ ] 2.3.1 Measure creation→Ready for 20 scale-ups at each
+- [~] 2.3.1 Measure creation→Ready for 20 scale-ups at each
       `WARMUP_SECONDS ∈ {0,5,15,30,60}`.
       *Done when:* `deploy/readiness.md` holds p50/p95 per setting.
-- [ ] 2.3.2 Derive H from §3.3 using p95, and record the arithmetic.
+      → `experiments/measure_readiness.py` ran preliminary 48-cycle sweep under
+      `50m`/`500m`; re-run `--cycles 20` on cluster laptop under `250m`/`128Mi`
+      Guaranteed QoS, then run `scripts/derive_horizon.py` to write `deploy/readiness.md`.
+- [~] 2.3.2 Derive H from §3.3 using p95, and record the arithmetic.
       *Done when:* `H` is written into `services/arbiter/config.yaml` with a
       one-line justification citing T2.3.1.
+      → `scripts/derive_horizon.py` implemented, unit-tested, and dry-run verified
+      against preliminary samples; writes `services/arbiter/config.yaml` once
+      20-cycle `250m` readiness sweep completes on cluster laptop.
 
 > **EXIT GATE 2:** `[ ]` `C`, `MAX_PODS` and `H` are all measured numbers in
 > committed config. **No ML work starts before this gate** — without `C`, a
@@ -732,8 +749,9 @@ Updated 2026-11-27.
 | Phase | Status |
 |---|---|
 | 0 — Repo & reproducibility | `[~]` T0.1, T0.2.1, T0.3.1 done; T0.2.2 (`cpctl.py` verified, `make` pending on Linux/WSL) & T0.2.3 (`seeds.py` verified on LightGBM, re-check on `ml/train.py`) |
-| 1 — Cluster & observability | `[~]` T1.1 & T1.3 done; T1.2.2 & T1.4.1 updated to `250m`/`128Mi` Guaranteed QoS (re-verify on cluster); exit gate awaits T2.1 |
-| 2–8 | `[ ]` not started (T2.3.1 preliminary harness/data recorded; re-run at `250m`/`128Mi` on cluster) |
+| 1 — Cluster & observability | `[~]` T1.1 & T1.3 done (`21-prometheus-config.yaml` updated to retain quota/period); T1.2.2 & T1.4.1 updated to `250m`/`128Mi` Guaranteed QoS (re-verify on cluster); exit gate awaits T2.1 |
+| 2 — Capacity & load harness | `[~]` T2.1/T2.2/T2.3 scripts, profiles, and unit tests complete; live cluster measurements (`C`, 20-cycle readiness, `H`) pending on 15.6 GB cluster laptop |
+| 3–8 | `[ ]` not started |
 
 Live: k3d cluster `cloudpulse`, target-app 3/3 Ready, Prometheus scraping at 5 s.
 Whole cluster footprint 785 Mi. Measured constants so far are in

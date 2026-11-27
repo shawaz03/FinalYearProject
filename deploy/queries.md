@@ -119,4 +119,4 @@ sum(container_memory_working_set_bytes{namespace="cloudpulse",container="target-
 | retention | 2h | runs are ~15 min; Postgres is the system of record |
 | retention size | 512MB | backstop against runaway cardinality |
 | discovery | pod annotations | no operator, no CRDs (CLAUDE.md §3.7) |
-| cAdvisor filtering | 2 series, `cloudpulse` ns only | keeps Prometheus near 300Mi instead of >1Gi |
+| cAdvisor filtering | 4 series, `cloudpulse` ns only | keeps Prometheus lightweight while retaining `container_spec_cpu_quota`/`period` for query #3 |

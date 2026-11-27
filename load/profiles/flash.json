@@ -1,0 +1,15 @@
+{
+  "profile": "flash",
+  "description": "15-minute flash-spike profile with calm warmup, sharp surge, plateau, and recovery (T2.1.1).",
+  "slo_ms": 100,
+  "time_unit": "1s",
+  "target_path": "/api/work",
+  "segments": [
+    { "name": "baseline-calm", "duration_s": 180, "target_rps": 20 },
+    { "name": "pre-surge", "duration_s": 60, "target_rps": 40 },
+    { "name": "flash-peak", "duration_s": 180, "target_rps": 140 },
+    { "name": "post-peak-high", "duration_s": 120, "target_rps": 105 },
+    { "name": "step-down", "duration_s": 120, "target_rps": 55 },
+    { "name": "recovery", "duration_s": 240, "target_rps": 20 }
+  ]
+}

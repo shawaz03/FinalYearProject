@@ -493,14 +493,40 @@ while keeping per-pod capacity in a convenient RPS range for local k6 load.
 (absent on Windows; `scripts/cpctl.py` backs every target) and verifying
 `seeds.py` inside `ml/train.py` (created in Phase 4).
 
+### Phase 2 tooling — Open-loop k6 harness, capacity `C`, and horizon `H` (`T2.1`–`T2.3`)
+
+**Catch during authoring:** `deploy/k8s/21-prometheus-config.yaml` previously
+retained only two cAdvisor series (`container_cpu_usage_seconds_total` and
+`container_memory_working_set_bytes`), silently dropping `container_spec_cpu_quota`
+and `container_spec_cpu_period` required by `deploy/queries.md` query #3
+(per-pod utilisation for `T2.2` and the Phase 5 reactive guard). Added both
+gauges to the Prometheus `keep` regex and added a fallback in
+`experiments/measure_capacity.py` against `--cpu-limit-cores` (0.25).
+
+**Catch in k6 summary defaults:** k6's default `summaryTrendStats` omits `p(50)`
+and `p(99)`. Explicitly configured `summaryTrendStats` in `load/k6_runner.js`
+plus custom `sla_violations` rate tracking (`> 100 ms` or non-200).
+
+**Artifacts added:**
+- `load/profiles/{gradual,flash,diurnal}.json` — 15-minute declarative RPS schedules
+- `load/k6_runner.js` + `load/README.md` — chained `constant-arrival-rate` open-loop runner
+- `experiments/k6_summary.py`, `experiments/measure_capacity.py` — saturation sweep + 3-pod linearity checker
+- `scripts/derive_horizon.py` — `deploy/readiness.md` & `services/arbiter/config.yaml` generator (rounds `H` up to 5 s cadence multiples)
+- `tests/test_load_profiles.py`, `tests/test_capacity_and_horizon.py`
+
+**Checks run:** `scripts/cpctl.py test` and `scripts/derive_horizon.py --dry-run`
+against preliminary `readiness-20261126-140654/samples.json`.
+
+**Pending on the 15.6 GB cluster laptop:**
+1. Apply updated `deploy/k8s/10-target-app-deployment.yaml` & `21-prometheus-config.yaml`
+2. Re-verify `MAX_PODS = 15` (`0 Pending`)
+3. Run `k6` 10–15 min load (`T2.1`, closes Gate 1)
+4. Run `experiments/measure_capacity.py` (`T2.2` → writes `deploy/capacity.yaml`)
+5. Run `experiments/measure_readiness.py --cycles 20` then `scripts/derive_horizon.py` (`T2.3` → writes `deploy/readiness.md` & `services/arbiter/config.yaml`)
+
 ### Next actions
 
-| Member | Next | Blocked by |
+| Step | Where | Action |
 |---|---|---|
-| **M3** | **T2.1 — k6 open-loop harness.** Critical path | nothing |
-| **M2** | T2.3.2 derive `H`; then the actuator (T5.3.2) | nothing |
-| **M4** | Take `experiments/` and `analysis/` now, not week 12 | nothing |
-| **M1** | MAPIE + ACI reading; cannot train until `C`, `H` and data exist | Phases 2–3 |
-
-**T2.1 is the critical path.** It unblocks the Phase 1 exit gate, the capacity
-constant `C`, and therefore all of Phases 3, 4 and 5.
+| Cluster sync | 15.6 GB laptop | Pull, apply `deploy/k8s/`, verify `MAX_PODS`, run `T2.1`–`T2.3` and push constants |
+| Phase 3 / 6.1 | This laptop (7.9 GB) | Audit `dashboard/` UI (`npm run dev`), or build `services/collector/` + `cloudpulse_core/features.py` with mocked tests |

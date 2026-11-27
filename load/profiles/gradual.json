@@ -1,0 +1,18 @@
+{
+  "profile": "gradual",
+  "description": "Progressive 15-minute climb and unwind for steady-state ramp tracking (T2.1.1).",
+  "slo_ms": 100,
+  "time_unit": "1s",
+  "target_path": "/api/work",
+  "segments": [
+    { "name": "baseline-calm", "duration_s": 120, "target_rps": 15 },
+    { "name": "ramp-1", "duration_s": 90, "target_rps": 30 },
+    { "name": "ramp-2", "duration_s": 90, "target_rps": 50 },
+    { "name": "ramp-3", "duration_s": 90, "target_rps": 75 },
+    { "name": "ramp-4", "duration_s": 120, "target_rps": 100 },
+    { "name": "peak-hold", "duration_s": 120, "target_rps": 120 },
+    { "name": "cooldown-1", "duration_s": 90, "target_rps": 85 },
+    { "name": "cooldown-2", "duration_s": 90, "target_rps": 50 },
+    { "name": "tail-calm", "duration_s": 90, "target_rps": 20 }
+  ]
+}
