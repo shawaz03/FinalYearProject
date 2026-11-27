@@ -433,14 +433,37 @@ at 5 s.
 
 ### Open decisions
 
-1. **HPA measures utilisation against `requests`, not `limits`.** With
-   `requests.cpu: 50m` and `limits.cpu: 500m`, a pod at 250m reports **500%
-   utilisation** — a "70% target" trips at ~35m, so the default HPA would hit
-   `maxReplicas` under trivial load. That would hand CloudPulse a crushing win
-   that is **pure artifact**. Fixing it changes `limits.cpu`, which invalidates
-   T2.3.1 and `C`, so it must be settled **before** Phase 2 finalises.
+1. **HPA measures utilisation against `requests`, not `limits`.** Updated
+   `deploy/k8s/10-target-app-deployment.yaml` on 2026-11-27 to `requests == limits`
+   (`250m` CPU / `128Mi` memory, Guaranteed QoS) — **re-apply & re-verify on the
+   cluster laptop** before Phase 2 finalises.
 2. **Phase 1 exit gate** deliberately open — needs the k6 sustained run (T2.1).
 3. **Dashboard not visually inspected.**
+
+---
+
+## Session 2 — 27 November 2026 (7.9 GB DEV/ML/UI Laptop)
+
+### Step P.1 — Align `target-app` CPU & memory `requests == limits` (Guaranteed QoS)
+
+**Why.** `deploy/k8s/10-target-app-deployment.yaml` previously set
+`requests.cpu: 50m` / `limits.cpu: 500m` and `requests.memory: 64Mi` /
+`limits.memory: 128Mi`. Because Kubernetes HPA computes utilisation against
+`requests` (`usage / requests`), HPA would have tripped at ~35m CPU and handed
+CloudPulse an invalid artifact win. Setting equal `requests` and `limits` on
+**both** CPU and memory also puts every pod into Kubernetes `Guaranteed` QoS.
+
+**Choice (`250m` CPU / `128Mi` memory).** At `500m`, 15 pods would request
+`7.5` of the `8` allocatable cores on the k3d node and risk `Insufficient cpu`
+(`Pending`) alongside system and Prometheus pods. At `250m` / `128Mi`, 15 pods
+request `3750m` CPU (`47%`) and `1920Mi` memory (`32%`), leaving clean headroom
+while keeping per-pod capacity in a convenient RPS range for local k6 load.
+
+**Not yet checked (requires the 15.6 GB cluster laptop):**
+- Applying `deploy/k8s/10-target-app-deployment.yaml` to `k3d-cloudpulse`
+- Re-confirming `MAX_PODS = 15` with `0 Pending` (`T1.4.1`)
+- Re-running `T2.3.1` readiness (`experiments/measure_readiness.py`) and
+  measuring `C` (`T2.2`) against the `250m` CPU limit.
 
 ### Next actions
 

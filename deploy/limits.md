@@ -16,20 +16,23 @@ decision depends on them.
 
 ## MAX_PODS — resolves finding D13
 
-**MAX_PODS = 15, empirically verified schedulable.**
+**MAX_PODS = 15 (measured 2026-11-26 under `50m`/`64Mi` requests; re-verification
+pending on cluster after updating to `250m`/`128Mi` Guaranteed QoS).**
 
-Scaled `target-app` to 15 replicas: all 15 reached `Running`, **zero Pending**.
+Previously scaled `target-app` to 15 replicas: all 15 reached `Running`, **zero Pending**.
 
 This matters because a `Pending` pod is not a scaled pod. If the arbiter asks
 for replicas the node cannot place, scaling silently becomes a no-op, latency
-stays bad, and the benchmark measures nothing. Headroom at 15 replicas:
+stays bad, and the benchmark measures nothing.
 
-- CPU requests: 15 x 50m = 750m of 8000m allocatable (9%)
-- Memory requests: 15 x 64Mi = 960Mi of 5.79Gi allocatable (16%)
-- Observed actual usage: ~37 Mi and 3-4 m CPU per idle pod
+- Previous requests at 15 replicas (2026-11-26): 750m CPU (9%), 960Mi memory (16%)
+- **Updated Guaranteed QoS (`250m` / `128Mi`) at 15 replicas:**
+  - CPU requests/limits: 15 x 250m = 3750m of 8000m allocatable (47%)
+  - Memory requests/limits: 15 x 128Mi = 1920Mi of 5.79Gi allocatable (32%)
+- Observed actual idle usage (2026-11-26): ~37 Mi and 3-4 m CPU per pod
 
-There is room to raise MAX_PODS above 15 if an experiment needs it. Do not
-raise it without re-running this check.
+Do not treat `MAX_PODS = 15` as final under the new `250m`/`128Mi` spec until
+re-verified with `0 Pending` on the 15.6 GB cluster laptop.
 
 ## Cluster footprint
 

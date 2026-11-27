@@ -28,24 +28,19 @@ kubectl get hpa -n cloudpulse -w
 kubectl delete -f deploy/baselines/hpa-default.yaml   # ALWAYS clean up
 ```
 
-## ⚠ Open issue: HPA utilisation is measured against *requests*
+## Resolved in manifest (pending live cluster re-verification): CPU requests == limits
 
 HPA computes CPU utilisation as `usage / requests`, **not** `usage / limits`.
 
-The Deployment currently sets `requests.cpu: 50m` and `limits.cpu: 500m`. A pod
-doing real work at 250m therefore reports **500% utilisation**, so a "70%
-target" is breached at roughly 35m - almost idle. The default HPA would slam
-into `maxReplicas` under trivial load, and the comparison would be meaningless
-in CloudPulse's favour. That is not a win we want.
+Previously, the Deployment set `requests.cpu: 50m` and `limits.cpu: 500m`, so a
+pod doing real work at 250m reported **500% utilisation** to HPA and breached a
+"70% target" at roughly 35m - giving CloudPulse an unfair artifact win.
 
-Note this differs from our own reactive guard, which measures against the
-*limit* (`container_spec_cpu_quota`, see `deploy/queries.md` query 3) and is
-therefore a true 0-100% scale.
+`deploy/k8s/10-target-app-deployment.yaml` now sets `requests == limits` on
+both CPU (`250m`) and memory (`128Mi`), placing every `target-app` pod in
+Kubernetes **Guaranteed** QoS and aligning HPA's utilisation scale with our
+own reactive guard (`container_spec_cpu_quota`, `deploy/queries.md` query 3).
 
-**Resolution required before T7.2 runs:** bring `requests` and `limits` together
-so utilisation means what HPA thinks it means. Setting them equal also puts the
-pods in Guaranteed QoS, which reduces scheduling noise in benchmark timings.
-
-Changing `limits.cpu` alters container startup time, so it invalidates the
-T2.3.1 readiness numbers and the capacity constant `C`. Decide this **before**
-Phase 2 finalises, not after.
+**Pending on the cluster laptop before Phase 2 finalises:** apply the updated
+manifest, re-verify `MAX_PODS = 15` (`0 Pending`), re-run `T2.3.1` readiness,
+and measure `C` (`T2.2`) against the `250m` CPU cap.

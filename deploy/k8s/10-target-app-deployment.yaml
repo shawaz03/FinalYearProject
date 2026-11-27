@@ -44,14 +44,17 @@ spec:
                 fieldRef:
                   fieldPath: metadata.name
           resources:
+            # Guaranteed QoS: requests == limits for BOTH cpu and memory.
+            # Keeps Kubernetes HPA utilisation (usage / requests) aligned with
+            # CloudPulse's reactive guard (usage / limit) and reduces noisy-
+            # neighbor scheduling jitter. 15 replicas x 250m = 3750m (47% of 8
+            # allocatable cores), leaving headroom for system + Prometheus pods.
+            # Changing limits invalidates C (T2.2) and readiness (T2.3).
             requests:
-              cpu: "50m"
-              memory: "64Mi"
+              cpu: "250m"
+              memory: "128Mi"
             limits:
-              # The CPU limit is what actually bounds per-pod throughput, so it
-              # defines the capacity constant C measured in Phase 2 (T2.2).
-              # Changing it invalidates C and every replica count derived from it.
-              cpu: "500m"
+              cpu: "250m"
               memory: "128Mi"
           readinessProbe:
             httpGet:

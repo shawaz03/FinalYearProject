@@ -174,7 +174,7 @@ any single win claim.
 | Area | Choice | Note |
 |---|---|---|
 | Cluster | **k3d** (K3s in Docker), single node | replaces Minikube: ~600 MB control plane vs ~2 GB, ~20 s start vs ~2 min, and `metrics-server` is built in (HPA needs it). K3s is CNCF-certified Kubernetes, so the viva claim "we deployed on a real Kubernetes cluster" holds. The blueprint's "2+ nodes" is dropped — it buys nothing and costs RAM |
-| Target app | FastAPI + `prometheus-fastapi-instrumentator` | pod requests `50m` CPU / `64Mi` — see Phase 1, T1.4 |
+| Target app | FastAPI + `prometheus-fastapi-instrumentator` | pod Guaranteed QoS `250m` CPU / `128Mi` (`requests == limits`) — see Phase 1, T1.4 |
 | Metrics | **plain Prometheus manifest**, `kubernetes_sd_configs` | NOT kube-prometheus-stack: that bundles Grafana + Alertmanager (~500 MB) which the Phase 6 dashboard makes redundant. No Helm, no operator, no ServiceMonitor CRDs. Retention 2h — experiments run ~15 min and the collector persists to Postgres anyway |
 | Storage | **plain PostgreSQL 16** | TimescaleDB dropped — ops risk, no research value at this data volume |
 | Load | **k6** (open-loop, constant arrival rate) | Locust is closed-loop by default and hides overload latency (coordinated omission). Keep Locust only for interactive demo flavour |
@@ -362,12 +362,15 @@ real dates in §8 once the submission deadline is fixed.
       One gotcha hit and documented in `deploy/troubleshooting.md`: k3d wrote
       `host.docker.internal`, which resolved to a VPN adapter; repointed the
       context at `127.0.0.1`.
-- [x] 1.2.2 Deployment + Service manifests with explicit `resources.requests` =
-      `50m` CPU / `64Mi` and matching limits.
+- [~] 1.2.2 Deployment + Service manifests with explicit `resources.requests` =
+      `250m` CPU / `128Mi` and matching limits (Guaranteed QoS).
       *Done when:* `kubectl get deploy target-app` shows 3/3 Ready.
-      → 3/3 Ready. Service routing verified: 9 requests spread across all three
-      pods. Scaling verified both ways. `imagePullPolicy: IfNotPresent` is
-      load-bearing — the image is imported, not published to any registry.
+      → Previously 3/3 Ready under `50m`/`64Mi` (`500m`/`128Mi` limits) with
+      Service routing across all 3 pods verified. Updated 2026-11-27 to
+      `250m`/`128Mi` Guaranteed QoS (`requests == limits`) so HPA `usage /
+      requests` is fair — pending re-apply on the live cluster.
+      `imagePullPolicy: IfNotPresent` is load-bearing — the image is imported,
+      not published to any registry.
 
 **T1.3 Observability**
 - [x] 1.3.1 Apply the plain Prometheus manifest: `scrape_interval: 5s`,
@@ -393,12 +396,14 @@ real dates in §8 once the submission deadline is fixed.
       an exact 0.1 boundary so the SLO is counted, not estimated.
 
 **T1.4 Capacity sanity (resolves D13)**
-- [x] 1.4.1 Scale manually to the intended `MAX_PODS` and observe scheduling.
+- [~] 1.4.1 Scale manually to the intended `MAX_PODS` and observe scheduling.
       *Done when:* all pods reach Running with **zero** `Pending`; if any pend,
       lower `MAX_PODS` and record the real ceiling in `deploy/limits.md`. This
       number overrides the README's 20.
-      → 15/15 Running, zero Pending. Node allocatable 8 CPU / 5.79 GiB / 110
-      pods, so there is headroom above 15. Recorded in `deploy/limits.md`.
+      → Previously 15/15 Running (`0 Pending`) at `50m`/`64Mi` requests. Updated
+      2026-11-27 to `250m`/`128Mi` Guaranteed QoS (`3750m` / `1920Mi` at 15
+      pods vs `8` CPU / `5.79 GiB` allocatable); pending re-verification on the
+      cluster laptop. Recorded in `deploy/limits.md`.
 
 > **EXIT GATE 1:** `[~]` A 10-minute manual load produces a visible spike in all
 > queries from T1.3.3, and `MAX_PODS` is empirically proven schedulable.
@@ -708,13 +713,13 @@ on `cloudpulse_core/features.py` so ML is not a single point of failure.
 
 ## 8. Current status
 
-Updated 2026-11-26.
+Updated 2026-11-27.
 
 | Phase | Status |
 |---|---|
 | 0 — Repo & reproducibility | `[~]` T0.1 done; T0.2 (pins, Makefile, seeds) and T0.3 (manifest schema) outstanding |
-| 1 — Cluster & observability | `[~]` T1.1–T1.4 all done; exit gate awaits the k6 sustained run in T2.1 |
-| 2–8 | `[ ]` not started |
+| 1 — Cluster & observability | `[~]` T1.1 & T1.3 done; T1.2.2 & T1.4.1 updated to `250m`/`128Mi` Guaranteed QoS (re-verify on cluster); exit gate awaits T2.1 |
+| 2–8 | `[ ]` not started (T2.3.1 preliminary harness/data recorded; re-run at `250m`/`128Mi` on cluster) |
 
 Live: k3d cluster `cloudpulse`, target-app 3/3 Ready, Prometheus scraping at 5 s.
 Whole cluster footprint 785 Mi. Measured constants so far are in
